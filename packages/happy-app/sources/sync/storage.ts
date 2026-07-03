@@ -22,7 +22,7 @@ import { LocalSettings, applyLocalSettings } from "./localSettings";
 import { Purchases, customerInfoToPurchases } from "./purchases";
 import { Profile } from "./profile";
 import { UserProfile, RelationshipUpdatedEvent } from "./friendTypes";
-import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels } from "./persistence";
+import { loadSettings, loadLocalSettings, saveLocalSettings, saveSettings, loadPurchases, savePurchases, loadProfile, saveProfile, loadSessionDrafts, saveSessionDrafts, loadSessionPermissionModes, saveSessionPermissionModes, loadSessionModelModes, saveSessionModelModes, loadSessionEffortLevels, saveSessionEffortLevels, loadSessionLastMessageSentAt, saveSessionLastMessageSentAt } from "./persistence";
 import type { CustomerInfo } from './revenueCat/types';
 import React from "react";
 import { sync } from "./sync";
@@ -203,6 +203,7 @@ interface StorageState {
     updateSessionPermissionMode: (sessionId: string, mode: string | null) => void;
     updateSessionModelMode: (sessionId: string, mode: string | null) => void;
     updateSessionEffortLevel: (sessionId: string, level: string | null) => void;
+    markSessionMessageSent: (sessionId: string) => void;
     resetSessionAgentOverrides: (sessionId: string) => void;
     // Artifact methods
     applyArtifacts: (artifacts: DecryptedArtifact[]) => void;
@@ -248,8 +249,11 @@ function buildSessionListViewData(
     });
 
     // Sort by last activity or creation date (newest first), per user setting — matches applySessions behavior
+    // Activity sort keys off the last user-sent message, not updatedAt: updatedAt
+    // bumps on every background agent update, which would make the list jump while
+    // several sessions stream at once. lastMessageSentAt only moves when the user acts.
     const sortKey = storage.getState().settings.sortSessionsByActivity
-        ? (s: Session) => s.updatedAt
+        ? (s: Session) => s.lastMessageSentAt ?? s.createdAt
         : (s: Session) => s.createdAt;
     activeSessions.sort((a, b) => sortKey(b) - sortKey(a));
     inactiveSessions.sort((a, b) => sortKey(b) - sortKey(a));
@@ -339,6 +343,7 @@ export const storage = create<StorageState>()((set, get) => {
     let sessionPermissionModes = loadSessionPermissionModes();
     let sessionModelModes = loadSessionModelModes();
     let sessionEffortLevels = loadSessionEffortLevels();
+    let sessionLastMessageSentAt = loadSessionLastMessageSentAt();
     return {
         settings,
         settingsVersion: version,
@@ -399,6 +404,7 @@ export const storage = create<StorageState>()((set, get) => {
             const savedPermissionModes = isInitialLoad ? sessionPermissionModes : {};
             const savedModelModes = isInitialLoad ? sessionModelModes : {};
             const savedEffortLevels = isInitialLoad ? sessionEffortLevels : {};
+            const savedLastMessageSentAt = isInitialLoad ? sessionLastMessageSentAt : {};
 
             // Merge new sessions with existing ones
             const mergedSessions: Record<string, Session> = { ...state.sessions };
@@ -431,6 +437,9 @@ export const storage = create<StorageState>()((set, get) => {
                 const existingEffortLevel = state.sessions[session.id]?.effortLevel ?? null;
                 const resolvedEffortLevel = existingEffortLevel ?? savedEffortLevels[session.id] ?? session.effortLevel ?? null;
 
+                // Local activity timestamp — preserve in-memory value, else restore from MMKV.
+                const resolvedLastMessageSentAt = state.sessions[session.id]?.lastMessageSentAt ?? savedLastMessageSentAt[session.id];
+
                 mergedSessions[session.id] = {
                     ...session,
                     presence,
@@ -438,6 +447,7 @@ export const storage = create<StorageState>()((set, get) => {
                     permissionMode: resolvedPermissionMode,
                     modelMode: resolvedModelMode,
                     effortLevel: resolvedEffortLevel,
+                    lastMessageSentAt: resolvedLastMessageSentAt,
                 };
             });
 
@@ -464,7 +474,7 @@ export const storage = create<StorageState>()((set, get) => {
 
             // Sort both arrays by last activity or creation date (newest first), per user setting
             const sortKey = get().settings.sortSessionsByActivity
-                ? (s: Session) => s.updatedAt
+                ? (s: Session) => s.lastMessageSentAt ?? s.createdAt
                 : (s: Session) => s.createdAt;
             activeSessions.sort((a, b) => sortKey(b) - sortKey(a));
             inactiveSessions.sort((a, b) => sortKey(b) - sortKey(a));
@@ -1098,6 +1108,34 @@ export const storage = create<StorageState>()((set, get) => {
             return {
                 ...state,
                 sessions: updatedSessions
+            };
+        }),
+        markSessionMessageSent: (sessionId: string) => set((state) => {
+            const session = state.sessions[sessionId];
+            if (!session) return state;
+
+            const updatedSessions = {
+                ...state.sessions,
+                [sessionId]: {
+                    ...session,
+                    lastMessageSentAt: Date.now()
+                }
+            };
+
+            // Persist so activity ordering survives app restart.
+            const allTimestamps: Record<string, number> = {};
+            Object.entries(updatedSessions).forEach(([id, sess]) => {
+                if (sess.lastMessageSentAt) {
+                    allTimestamps[id] = sess.lastMessageSentAt;
+                }
+            });
+            saveSessionLastMessageSentAt(allTimestamps);
+
+            // Rebuild list view data — this timestamp drives activity-based sort.
+            return {
+                ...state,
+                sessions: updatedSessions,
+                sessionListViewData: buildSessionListViewData(updatedSessions)
             };
         }),
         resetSessionAgentOverrides: (sessionId: string) => set((state) => {

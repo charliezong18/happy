@@ -244,6 +244,23 @@ export function saveSessionEffortLevels(levels: Record<string, string>) {
     mmkv.set('session-effort-levels', JSON.stringify(levels));
 }
 
+export function loadSessionLastMessageSentAt(): Record<string, number> {
+    const timestamps = mmkv.getString('session-last-message-sent-at');
+    if (timestamps) {
+        try {
+            return JSON.parse(timestamps);
+        } catch (e) {
+            console.error('Failed to parse session last message sent timestamps', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionLastMessageSentAt(timestamps: Record<string, number>) {
+    mmkv.set('session-last-message-sent-at', JSON.stringify(timestamps));
+}
+
 export function loadProfile(): Profile {
     const profile = mmkv.getString('profile');
     if (profile) {
