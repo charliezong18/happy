@@ -1,0 +1,40 @@
+# Personal fork automation (charlie-main only, not for upstream PRs):
+# every push to charlie-main rebuilds the web app and republishes it to
+# GitHub Pages at https://charliezong18.github.io/happy/
+name: Deploy web to Pages
+
+on:
+  push:
+    branches: [charlie-main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Export web build
+        working-directory: packages/happy-app
+        run: EXPO_WEB_BASE_URL=/happy npx expo export --platform web
+      - name: Add Pages helpers (.nojekyll + SPA 404 fallback)
+        run: |
+          touch packages/happy-app/dist/.nojekyll
+          cp packages/happy-app/dist/index.html packages/happy-app/dist/404.html
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: packages/happy-app/dist
+          force_orphan: true
