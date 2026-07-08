@@ -8,12 +8,21 @@ import { MAX_CONTEXT_SIZE } from './AgentInput';
 // model · cwd · git branch · context %. All data already flows through
 // session metadata / git status sync / usage reducer — this is display only.
 
+type UsageLimitWindow = {
+    utilization: number | null;
+    resetsAt: string | null;
+} | null;
+
 type SessionStatusBarProps = {
     modelName: string | null;
     path: string;
     homeDir?: string;
     gitBranch: string | null;
     contextSize: number | null;
+    usageLimits?: {
+        fiveHour?: UsageLimitWindow;
+        sevenDay?: UsageLimitWindow;
+    } | null;
 };
 
 export const SessionStatusBar = React.memo((props: SessionStatusBarProps) => {
@@ -33,11 +42,16 @@ export const SessionStatusBar = React.memo((props: SessionStatusBarProps) => {
     const contextPercent = props.contextSize !== null
         ? Math.max(0, Math.min(100, Math.round((props.contextSize / MAX_CONTEXT_SIZE) * 100)))
         : null;
-    const contextColor = contextPercent !== null && contextPercent >= 95
+
+    const percentColor = (percent: number) => percent >= 95
         ? theme.colors.warningCritical
-        : contextPercent !== null && contextPercent >= 90
+        : percent >= 90
             ? theme.colors.warning
             : theme.colors.textSecondary;
+    const contextColor = contextPercent !== null ? percentColor(contextPercent) : theme.colors.textSecondary;
+
+    const limitFiveHour = props.usageLimits?.fiveHour?.utilization ?? null;
+    const limitSevenDay = props.usageLimits?.sevenDay?.utilization ?? null;
 
     return (
         <View style={styles.container}>
@@ -59,6 +73,16 @@ export const SessionStatusBar = React.memo((props: SessionStatusBarProps) => {
                 </View>
             )}
             <View style={styles.spacer} />
+            {limitFiveHour !== null && (
+                <Text style={[styles.text, { color: percentColor(limitFiveHour) }]}>
+                    5h {Math.round(limitFiveHour)}%
+                </Text>
+            )}
+            {limitSevenDay !== null && (
+                <Text style={[styles.text, { color: percentColor(limitSevenDay) }]}>
+                    7d {Math.round(limitSevenDay)}%
+                </Text>
+            )}
             {contextPercent !== null && (
                 <View style={styles.segment}>
                     <View style={styles.contextTrack}>

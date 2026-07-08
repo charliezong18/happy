@@ -60,6 +60,18 @@ export const MetadataSchema = z.object({
      */
     parentSessionId: z.string().optional(),
     forkedFromMessageId: z.string().optional(),
+    /** Plan rate-limit windows (5h/7d) reported by the CLI after each turn. */
+    usageLimits: z.object({
+        fiveHour: z.object({
+            utilization: z.number().nullable(),
+            resetsAt: z.string().nullable(),
+        }).nullable(),
+        sevenDay: z.object({
+            utilization: z.number().nullable(),
+            resetsAt: z.string().nullable(),
+        }).nullable(),
+        updatedAt: z.number(),
+    }).optional(),
 });
 
 export type Metadata = z.infer<typeof MetadataSchema>;

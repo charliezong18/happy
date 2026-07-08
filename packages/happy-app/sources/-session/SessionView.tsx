@@ -772,6 +772,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                         homeDir={session.metadata.homeDir}
                         gitBranch={gitStatus?.branch ?? null}
                         contextSize={usageData?.contextSize ?? null}
+                        usageLimits={session.metadata?.usageLimits}
                     />
                 </CenteredInputWidth>
             )}

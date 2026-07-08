@@ -401,6 +401,12 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             skills: metadata.skills,
                         }));
                     },
+                    onUsageLimits: (limits) => {
+                        session.client.updateMetadata((currentMetadata) => ({
+                            ...currentMetadata,
+                            usageLimits: limits,
+                        }));
+                    },
                     onQueryReady: (q) => {
                         permissionHandler.setPermissionModeUpdater(async (mode) => {
                             await q.setPermissionMode(mode);

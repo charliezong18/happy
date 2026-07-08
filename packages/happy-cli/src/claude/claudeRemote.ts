@@ -12,6 +12,7 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
+import type { UsageLimits } from "@/api/types";
 
 export async function claudeRemote(opts: {
 
@@ -42,7 +43,8 @@ export async function claudeRemote(opts: {
     onMessage: (message: SDKMessage) => void,
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void,
-    onSDKMetadata?: (metadata: { tools?: string[]; slashCommands?: string[]; mcpServers?: { name: string; status: string }[]; skills?: string[] }) => void
+    onSDKMetadata?: (metadata: { tools?: string[]; slashCommands?: string[]; mcpServers?: { name: string; status: string }[]; skills?: string[] }) => void,
+    onUsageLimits?: (limits: UsageLimits) => void
 }) {
 
     // Check if session is valid
@@ -234,6 +236,30 @@ export async function claudeRemote(opts: {
             if (message.type === 'result') {
                 updateThinking(false);
                 logger.debug('[claudeRemote] Result received');
+
+                // Refresh plan rate-limit windows (5h/7d) for the app status bar.
+                // Fire-and-forget: the API is experimental and unavailable for
+                // API key / Bedrock / Vertex sessions, so failures are ignored.
+                if (opts.onUsageLimits) {
+                    const onUsageLimits = opts.onUsageLimits;
+                    response.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()
+                        .then((usage) => {
+                            if (usage.rate_limits_available && usage.rate_limits) {
+                                onUsageLimits({
+                                    fiveHour: usage.rate_limits.five_hour
+                                        ? { utilization: usage.rate_limits.five_hour.utilization, resetsAt: usage.rate_limits.five_hour.resets_at }
+                                        : null,
+                                    sevenDay: usage.rate_limits.seven_day
+                                        ? { utilization: usage.rate_limits.seven_day.utilization, resetsAt: usage.rate_limits.seven_day.resets_at }
+                                        : null,
+                                    updatedAt: Date.now(),
+                                });
+                            }
+                        })
+                        .catch((e) => {
+                            logger.debug('[claudeRemote] usage/rate-limit fetch failed (ignored)', e);
+                        });
+                }
 
                 // Send completion messages
                 if (isCompactCommand) {

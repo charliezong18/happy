@@ -324,6 +324,14 @@ export type Metadata = {
   /** Lineage for sessions created via the fork / duplicate flow. */
   parentSessionId?: string
   forkedFromMessageId?: string
+  /** Plan rate-limit windows (5h/7d) from the Claude SDK, refreshed after each turn. */
+  usageLimits?: UsageLimits
+};
+
+export type UsageLimits = {
+  fiveHour: { utilization: number | null, resetsAt: string | null } | null,
+  sevenDay: { utilization: number | null, resetsAt: string | null } | null,
+  updatedAt: number,
 };
 
 export type AgentGoalStatus = {
