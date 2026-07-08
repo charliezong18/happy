@@ -1,5 +1,6 @@
 import { AgentContentView } from '@/components/AgentContentView';
 import { AgentGoalBar, type AgentGoalAction } from '@/components/AgentGoalBar';
+import { SessionStatusBar } from '@/components/SessionStatusBar';
 import { AgentInput } from '@/components/AgentInput';
 import { resolveVisibleAgentGoalStatus } from '@/components/agentGoalStatus';
 import type { MultiTextInputHandle } from '@/components/MultiTextInput';
@@ -25,7 +26,7 @@ import { voiceHooks } from '@/realtime/hooks/voiceHooks';
 import { getCurrentVoiceConversationId, getCurrentVoiceSessionDurationSeconds, startRealtimeSession, stopRealtimeSession } from '@/realtime/RealtimeSession';
 import { gitStatusSync } from '@/sync/gitStatusSync';
 import { sessionAbort, sessionGoalAction } from '@/sync/ops';
-import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
+import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSessionGitStatus, useSessionMessages, useSessionUsage, useSetting } from '@/sync/storage';
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
 import { sync } from '@/sync/sync';
@@ -487,6 +488,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     const sessionStatus = useSessionStatus(session);
     const sessionUsage = useSessionUsage(sessionId);
+    const gitStatus = useSessionGitStatus(sessionId);
     const alwaysShowContextSize = useSetting('alwaysShowContextSize');
     const experiments = useSetting('experiments');
     const expResumeSession = useSetting('expResumeSession');
@@ -759,6 +761,17 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                         goal={visibleAgentGoal}
                         onAction={handleGoalAction}
                         inFlightAction={goalActionInFlight}
+                    />
+                </CenteredInputWidth>
+            )}
+            {session.metadata?.path && (
+                <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
+                    <SessionStatusBar
+                        modelName={modelMode?.name ?? null}
+                        path={session.metadata.path}
+                        homeDir={session.metadata.homeDir}
+                        gitBranch={gitStatus?.branch ?? null}
+                        contextSize={usageData?.contextSize ?? null}
                     />
                 </CenteredInputWidth>
             )}
