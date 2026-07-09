@@ -83,6 +83,7 @@ const sessionStartEventSchema = z.object({
 const sessionTurnEndEventSchema = z.object({
     t: z.literal('turn-end'),
     status: z.enum(['completed', 'failed', 'cancelled']),
+    usage: usageDataSchema.optional(),
 });
 
 const sessionStopEventSchema = z.object({
@@ -572,7 +573,8 @@ function normalizeSessionEnvelope(
             role: 'event',
             isSidechain: false,
             content: { type: 'ready' },
-            meta
+            meta,
+            usage: envelope.ev.usage
         } satisfies NormalizedMessage;
     }
 

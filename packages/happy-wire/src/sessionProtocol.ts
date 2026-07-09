@@ -70,9 +70,21 @@ export const sessionStartEventSchema = z.object({
 export const sessionTurnEndStatusSchema = z.enum(['completed', 'failed', 'cancelled']);
 export type SessionTurnEndStatus = z.infer<typeof sessionTurnEndStatusSchema>;
 
+// Token usage from the underlying agent API, attached to turn-end so
+// clients can derive context size without parsing raw agent messages.
+// Field names mirror the Anthropic API usage block.
+export const sessionUsageSchema = z.object({
+  input_tokens: z.number(),
+  output_tokens: z.number(),
+  cache_creation_input_tokens: z.number().optional(),
+  cache_read_input_tokens: z.number().optional(),
+});
+export type SessionUsage = z.infer<typeof sessionUsageSchema>;
+
 export const sessionTurnEndEventSchema = z.object({
   t: z.literal('turn-end'),
   status: sessionTurnEndStatusSchema,
+  usage: sessionUsageSchema.optional(),
 });
 
 export const sessionStopEventSchema = z.object({

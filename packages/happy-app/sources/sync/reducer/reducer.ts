@@ -307,6 +307,10 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
             // Mark as processed to prevent duplication but don't add to messages
             state.messageIds.set(msg.id, msg.id);
             hasReadyEvent = true;
+            // Session-protocol turn-end carries the turn's final usage block
+            if (msg.usage) {
+                processUsageData(state, msg.usage, msg.createdAt);
+            }
             continue;
         }
 

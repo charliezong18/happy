@@ -13,6 +13,7 @@ import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
 import type { UsageLimits } from "@/api/types";
+import { fetchTeamclaudeLimits } from "./utils/teamclaudeLimits";
 
 export async function claudeRemote(opts: {
 
@@ -243,7 +244,7 @@ export async function claudeRemote(opts: {
                 if (opts.onUsageLimits) {
                     const onUsageLimits = opts.onUsageLimits;
                     response.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()
-                        .then((usage) => {
+                        .then(async (usage) => {
                             if (usage.rate_limits_available && usage.rate_limits) {
                                 onUsageLimits({
                                     fiveHour: usage.rate_limits.five_hour
@@ -254,6 +255,15 @@ export async function claudeRemote(opts: {
                                         : null,
                                     updatedAt: Date.now(),
                                 });
+                                return;
+                            }
+                            // API-key sessions (e.g. via claude-code-router → teamclaude)
+                            // have no plan limits in the SDK; ask teamclaude directly.
+                            if (process.env.ANTHROPIC_BASE_URL || process.env.HAPPY_USAGE_LIMITS_URL) {
+                                const limits = await fetchTeamclaudeLimits();
+                                if (limits) {
+                                    onUsageLimits(limits);
+                                }
                             }
                         })
                         .catch((e) => {

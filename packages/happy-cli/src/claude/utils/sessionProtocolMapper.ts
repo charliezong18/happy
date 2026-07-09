@@ -4,10 +4,12 @@ import {
     createEnvelope,
     type SessionEnvelope,
     type SessionTurnEndStatus,
+    type SessionUsage,
 } from '@slopus/happy-wire';
 
 export type ClaudeSessionProtocolState = {
     currentTurnId: string | null;
+    lastUsage?: SessionUsage | null;
     uuidToProviderSubagent?: Map<string, string>;
     taskPromptToSubagents?: Map<string, string[]>;
     providerSubagentToSessionSubagent?: Map<string, string>;
@@ -395,8 +397,13 @@ function closeTurn(
         return;
     }
 
-    envelopes.push(createEnvelope('agent', { t: 'turn-end', status }, { turn: state.currentTurnId }));
+    envelopes.push(createEnvelope('agent', {
+        t: 'turn-end',
+        status,
+        ...(state.lastUsage ? { usage: state.lastUsage } : {}),
+    }, { turn: state.currentTurnId }));
     state.currentTurnId = null;
+    state.lastUsage = null;
     clearSubagentTracking(state);
 }
 
@@ -484,6 +491,18 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
         const turnId = ensureTurn(state, envelopes);
         maybeEmitSubagentStart(state, turnId, subagent, envelopes);
         const blocks = Array.isArray(message.message?.content) ? message.message.content : [];
+
+        // Track the latest usage block so closeTurn can attach it to turn-end.
+        // Subagent (sidechain) usage is skipped — context size tracks the main thread.
+        const usage = (message.message as { usage?: { input_tokens?: unknown; output_tokens?: unknown; cache_creation_input_tokens?: unknown; cache_read_input_tokens?: unknown } })?.usage;
+        if (!subagent && usage && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number') {
+            state.lastUsage = {
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+                ...(typeof usage.cache_creation_input_tokens === 'number' ? { cache_creation_input_tokens: usage.cache_creation_input_tokens } : {}),
+                ...(typeof usage.cache_read_input_tokens === 'number' ? { cache_read_input_tokens: usage.cache_read_input_tokens } : {}),
+            };
+        }
 
         for (const block of blocks) {
             if (block.type === 'text' && typeof block.text === 'string') {
