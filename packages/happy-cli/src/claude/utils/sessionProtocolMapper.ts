@@ -1,10 +1,11 @@
+import { createHash } from 'node:crypto';
 import { createId } from '@paralleldrive/cuid2';
 import type { RawJSONLines } from '@/claude/types';
 import {
     createEnvelope,
     type SessionEnvelope,
-    type SessionTurnEndStatus,
     type SessionUsage,
+    type SessionTurnEndStatus,
 } from '@slopus/happy-wire';
 
 export type ClaudeSessionProtocolState = {
@@ -72,6 +73,13 @@ function getSessionSubagentIdForProviderSubagent(
     return getProviderSubagentToSessionSubagent(state).get(providerSubagent);
 }
 
+function deterministicSessionSubagentId(providerSubagent: string): string {
+    const digest = createHash('sha256')
+        .update(`claude-subagent:${providerSubagent}`)
+        .digest('hex');
+    return `c${digest.slice(0, 23)}`;
+}
+
 function ensureSessionSubagentIdForProviderSubagent(
     state: ClaudeSessionProtocolState,
     providerSubagent: string,
@@ -81,7 +89,7 @@ function ensureSessionSubagentIdForProviderSubagent(
         return existing;
     }
 
-    const created = createId();
+    const created = deterministicSessionSubagentId(providerSubagent);
     getProviderSubagentToSessionSubagent(state).set(providerSubagent, created);
     return created;
 }
@@ -366,6 +374,18 @@ function maybeEmitSubagentStop(
     active.delete(subagent);
 }
 
+function emitActiveSubagentStops(
+    state: ClaudeSessionProtocolState,
+    turn: string,
+    envelopes: SessionEnvelope[],
+): void {
+    const active = getActiveSubagents(state);
+    for (const subagent of active) {
+        envelopes.push(createEnvelope('agent', { t: 'stop' }, { turn, subagent }));
+    }
+    active.clear();
+}
+
 function clearSubagentTracking(state: ClaudeSessionProtocolState): void {
     getUuidToProviderSubagent(state).clear();
     getTaskPromptToSubagents(state).clear();
@@ -388,6 +408,40 @@ function ensureTurn(state: ClaudeSessionProtocolState, envelopes: SessionEnvelop
     return turnId;
 }
 
+function usageFromClaudeMessage(message: RawJSONLines): SessionUsage | undefined {
+    if (message.type !== 'assistant') {
+        return undefined;
+    }
+    return message.message?.usage;
+}
+
+function canCarryUsage(envelope: SessionEnvelope): boolean {
+    return envelope.ev.t !== 'turn-start'
+        && envelope.ev.t !== 'turn-end'
+        && envelope.ev.t !== 'start'
+        && envelope.ev.t !== 'stop';
+}
+
+function attachUsageToLastEnvelope(
+    envelopes: SessionEnvelope[],
+    firstCandidateIndex: number,
+    usage: SessionUsage | undefined,
+): void {
+    if (!usage) {
+        return;
+    }
+
+    for (let i = envelopes.length - 1; i >= firstCandidateIndex; i -= 1) {
+        if (canCarryUsage(envelopes[i])) {
+            envelopes[i] = {
+                ...envelopes[i],
+                usage,
+            };
+            return;
+        }
+    }
+}
+
 function closeTurn(
     state: ClaudeSessionProtocolState,
     status: SessionTurnEndStatus,
@@ -397,6 +451,7 @@ function closeTurn(
         return;
     }
 
+    emitActiveSubagentStops(state, state.currentTurnId, envelopes);
     envelopes.push(createEnvelope('agent', {
         t: 'turn-end',
         status,
@@ -488,20 +543,16 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
     }
 
     if (message.type === 'assistant') {
+        const firstUsageCandidateIndex = envelopes.length;
+        const usage = usageFromClaudeMessage(message);
         const turnId = ensureTurn(state, envelopes);
         maybeEmitSubagentStart(state, turnId, subagent, envelopes);
         const blocks = Array.isArray(message.message?.content) ? message.message.content : [];
 
         // Track the latest usage block so closeTurn can attach it to turn-end.
         // Subagent (sidechain) usage is skipped — context size tracks the main thread.
-        const usage = (message.message as { usage?: { input_tokens?: unknown; output_tokens?: unknown; cache_creation_input_tokens?: unknown; cache_read_input_tokens?: unknown } })?.usage;
         if (!subagent && usage && typeof usage.input_tokens === 'number' && typeof usage.output_tokens === 'number') {
-            state.lastUsage = {
-                input_tokens: usage.input_tokens,
-                output_tokens: usage.output_tokens,
-                ...(typeof usage.cache_creation_input_tokens === 'number' ? { cache_creation_input_tokens: usage.cache_creation_input_tokens } : {}),
-                ...(typeof usage.cache_read_input_tokens === 'number' ? { cache_read_input_tokens: usage.cache_read_input_tokens } : {}),
-            };
+            state.lastUsage = usage;
         }
 
         for (const block of blocks) {
@@ -557,6 +608,8 @@ function mapClaudeLogMessageToSessionEnvelopesInternal(
                 }
             }
         }
+
+        attachUsageToLastEnvelope(envelopes, firstUsageCandidateIndex, usage);
 
         return {
             currentTurnId: state.currentTurnId,

@@ -4,6 +4,7 @@ import {
     getAvailableModels,
     getAvailablePermissionModes,
     getCodexModelModes,
+    getClaudeModelModes,
     getClaudePermissionModes,
     getDefaultEffortKey,
     getDefaultModelKey,
@@ -35,6 +36,9 @@ describe('modelModeOptions', () => {
         const models = getCodexModelModes();
         expect(models.map((model) => model.key)).toEqual([
             'default',
+            'gpt-5.6-sol',
+            'gpt-5.6-terra',
+            'gpt-5.6-luna',
             'gpt-5.5',
             'gpt-5.4',
             'gpt-5.3-codex',
@@ -44,7 +48,23 @@ describe('modelModeOptions', () => {
             'gpt-5.1-codex-mini',
         ]);
         expect(models[0].name).toBe('default model');
-        expect(models[1].name).toBe('gpt-5.5');
+        expect(models[1].name).toBe('gpt-5.6 sol');
+    });
+
+    it('builds claude model fallbacks with fable 5', () => {
+        const models = getClaudeModelModes();
+        expect(models.map((model) => model.key)).toEqual([
+            'default',
+            'opus',
+            'fable',
+            'sonnet',
+            'haiku',
+        ]);
+        expect(models.find((model) => model.key === 'fable')).toEqual({
+            key: 'fable',
+            name: 'fable 5',
+            description: null,
+        });
     });
 
     it('uses code defaults for agent defaults', () => {
@@ -87,6 +107,7 @@ describe('modelModeOptions', () => {
         } as any, translate);
 
         expect(modes.map((mode) => mode.key)).toEqual(['default', 'read-only', 'safe-yolo', 'yolo']);
+        expect(modes.find((mode) => mode.key === 'safe-yolo')?.description).toBe('tr:agentInput.codexPermissionMode.safeYoloDescription');
     });
 
     it('applies hacks to metadata-provided operating modes', () => {
