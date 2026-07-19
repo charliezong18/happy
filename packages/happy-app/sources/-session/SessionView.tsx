@@ -790,6 +790,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 onEffortLevelChange={updateEffortLevel}
                 contextSize={usageData?.contextSize}
                 contextWindow={usageData?.contextWindow}
+                usageLimits={session.metadata?.usageLimits}
             />
         </CenteredInputWidth>
     ) : null;
