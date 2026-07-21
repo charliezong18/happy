@@ -1269,7 +1269,7 @@ export const storage = create<StorageState>()((set, get) => {
             
             const { [sessionId]: _fileCache, ...remainingFileCache } = state.sessionFileCache;
 
-            // Clear drafts, permission modes, model modes, effort levels from persistent storage
+            // Clear drafts, permission modes, model modes, effort levels, last-message-sent times from persistent storage
             const drafts = loadSessionDrafts();
             delete drafts[sessionId];
             saveSessionDrafts(drafts);
@@ -1285,9 +1285,14 @@ export const storage = create<StorageState>()((set, get) => {
             const effortLevels = loadSessionEffortLevels();
             delete effortLevels[sessionId];
             saveSessionEffortLevels(effortLevels);
-            
-            // Rebuild sessionListViewData without the deleted session
-            const sessionListViewData = buildSessionListViewData(remainingSessions);
+
+            const lastMessageSentAt = loadSessionLastMessageSentAt();
+            delete lastMessageSentAt[sessionId];
+            saveSessionLastMessageSentAt(lastMessageSentAt);
+
+            // Rebuild sessionListViewData without the deleted session.
+            // Pass unreadSessionIds so the remaining sessions keep their unread badges.
+            const sessionListViewData = buildSessionListViewData(remainingSessions, state.unreadSessionIds);
             
             return {
                 ...state,
