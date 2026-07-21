@@ -12,8 +12,8 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
-import type { UsageLimits } from "@/api/types";
-import { fetchTeamclaudeLimits } from "./utils/teamclaudeLimits";
+import { fromRateLimitEvent, windowsFromGetUsage, type UnboundRateLimit, type UsageLimitsPatch, type RateLimitEventInfo } from "./utils/usageLimits";
+import type { UsageLimitWindow } from "@/api/types";
 
 export async function claudeRemote(opts: {
 
@@ -45,7 +45,8 @@ export async function claudeRemote(opts: {
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void,
     onSDKMetadata?: (metadata: { tools?: string[]; slashCommands?: string[]; mcpServers?: { name: string; status: string }[]; skills?: string[] }) => void,
-    onUsageLimits?: (limits: UsageLimits) => void
+    /** Per-turn plan rate-limit delta; the launcher merges it into session metadata. */
+    onUsageLimits?: (patch: UsageLimitsPatch) => void
 }) {
 
     // Check if session is valid
@@ -176,6 +177,71 @@ export async function claudeRemote(opts: {
         });
     }
 
+    // Plan rate-limit accumulation: events are buffered and flushed once per
+    // result (coalescing metadata writes to at most one per turn). The seed
+    // runs on the first result of this invocation — the Query object does not
+    // exist before the first user message, so there is no session-start hook.
+    const pendingUsageWindows = new Map<string, UsageLimitWindow>();
+    let pendingUnbound: UnboundRateLimit | null = null;
+    let usageSeeded = false;
+    let lastUsageSignature: string | null = null;
+    let lastUsageEmittedAt = 0;
+    // Identical data still gets re-written occasionally so the snapshot's
+    // capturedAt (the app's "as of" footer) doesn't misreport freshness.
+    const USAGE_REFRESH_INTERVAL_MS = 5 * 60_000;
+    const flushUsageLimits = async () => {
+        if (!opts.onUsageLimits) return;
+        let seededThisFlush = false;
+        if (!usageSeeded) {
+            usageSeeded = true;
+            // typeof-gated: the method is experimental and absent in older SDKs.
+            const usageFn = (response as any).usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET;
+            if (typeof usageFn === 'function') {
+                try {
+                    const usage = await usageFn.call(response);
+                    if (usage?.rate_limits_available && usage.rate_limits) {
+                        for (const w of windowsFromGetUsage(usage.rate_limits)) {
+                            // Events are fresher than the seed for the same window
+                            if (!pendingUsageWindows.has(w.id)) {
+                                pendingUsageWindows.set(w.id, w);
+                            }
+                        }
+                        seededThisFlush = true;
+                    }
+                } catch (e) {
+                    logger.debug('[claudeRemote] usage seed failed (ignored)', e);
+                }
+            }
+        }
+        if (pendingUsageWindows.size === 0 && !pendingUnbound) return;
+        const patch: UsageLimitsPatch = {
+            capturedAt: Date.now(),
+            windows: [...pendingUsageWindows.values()],
+            unbound: pendingUnbound ?? undefined,
+            // A full snapshot replaces persisted windows so ones the backend
+            // stopped reporting don't linger with a stale status.
+            replace: seededThisFlush || undefined,
+        };
+        pendingUsageWindows.clear();
+        pendingUnbound = null;
+        const signature = JSON.stringify([patch.windows, patch.unbound ?? null]);
+        if (signature === lastUsageSignature && Date.now() - lastUsageEmittedAt < USAGE_REFRESH_INTERVAL_MS) return;
+        lastUsageSignature = signature;
+        lastUsageEmittedAt = Date.now();
+        opts.onUsageLimits(patch);
+    };
+    // Serialized: a second result must not interleave with a flush that is
+    // still awaiting the seed, or it would drain the buffer mid-merge and
+    // emit a second, out-of-order patch.
+    let usageFlushChain: Promise<void> = Promise.resolve();
+    const scheduleUsageFlush = () => {
+        usageFlushChain = usageFlushChain
+            .then(flushUsageLimits)
+            .catch((e) => {
+                logger.debug('[claudeRemote] usage flush failed (ignored)', e);
+            });
+    };
+
     updateThinking(true);
     try {
         logger.debug(`[claudeRemote] Starting to iterate over response`);
@@ -233,43 +299,27 @@ export async function claudeRemote(opts: {
                 }
             }
 
+            // Buffer plan rate-limit events; flushed on the next result
+            if (message.type === 'rate_limit_event') {
+                const info = (message as { rate_limit_info?: RateLimitEventInfo }).rate_limit_info;
+                if (info) {
+                    const normalized = fromRateLimitEvent(info);
+                    if (normalized.window) {
+                        pendingUsageWindows.set(normalized.window.id, normalized.window);
+                    } else if (normalized.unbound) {
+                        pendingUnbound = normalized.unbound;
+                    }
+                }
+            }
+
             // Handle result messages
             if (message.type === 'result') {
                 updateThinking(false);
                 logger.debug('[claudeRemote] Result received');
 
-                // Refresh plan rate-limit windows (5h/7d) for the app status bar.
-                // Fire-and-forget: the API is experimental and unavailable for
-                // API key / Bedrock / Vertex sessions, so failures are ignored.
-                if (opts.onUsageLimits) {
-                    const onUsageLimits = opts.onUsageLimits;
-                    response.usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET()
-                        .then(async (usage) => {
-                            if (usage.rate_limits_available && usage.rate_limits) {
-                                onUsageLimits({
-                                    fiveHour: usage.rate_limits.five_hour
-                                        ? { utilization: usage.rate_limits.five_hour.utilization, resetsAt: usage.rate_limits.five_hour.resets_at }
-                                        : null,
-                                    sevenDay: usage.rate_limits.seven_day
-                                        ? { utilization: usage.rate_limits.seven_day.utilization, resetsAt: usage.rate_limits.seven_day.resets_at }
-                                        : null,
-                                    updatedAt: Date.now(),
-                                });
-                                return;
-                            }
-                            // API-key sessions (e.g. via claude-code-router → teamclaude)
-                            // have no plan limits in the SDK; ask teamclaude directly.
-                            if (process.env.ANTHROPIC_BASE_URL || process.env.HAPPY_USAGE_LIMITS_URL) {
-                                const limits = await fetchTeamclaudeLimits();
-                                if (limits) {
-                                    onUsageLimits(limits);
-                                }
-                            }
-                        })
-                        .catch((e) => {
-                            logger.debug('[claudeRemote] usage/rate-limit fetch failed (ignored)', e);
-                        });
-                }
+                // Fire-and-forget: unavailable for API key / Bedrock / Vertex
+                // sessions and experimental besides, so failures are ignored.
+                scheduleUsageFlush();
 
                 // Send completion messages
                 if (isCompactCommand) {

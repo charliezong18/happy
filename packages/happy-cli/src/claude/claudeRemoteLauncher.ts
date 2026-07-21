@@ -5,6 +5,7 @@ import { RemoteModeDisplay } from "@/ui/ink/RemoteModeDisplay";
 import React from "react";
 import { claudeRemote } from "./claudeRemote";
 import { PermissionHandler } from "./utils/permissionHandler";
+import { mergeUsageLimits } from "./utils/usageLimits";
 import { Future } from "@/utils/future";
 import { SDKAssistantMessage, SDKMessage, SDKUserMessage } from "./sdk";
 import { formatClaudeMessageForInk } from "@/ui/messageFormatterInk";
@@ -400,10 +401,12 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             skills: metadata.skills,
                         }));
                     },
-                    onUsageLimits: (limits) => {
+                    onUsageLimits: (patch) => {
+                        // Merging against currentMetadata re-hydrates window
+                        // state across claudeRemote re-entries (mode switches).
                         session.client.updateMetadata((currentMetadata) => ({
                             ...currentMetadata,
-                            usageLimits: limits,
+                            usageLimits: mergeUsageLimits(currentMetadata.usageLimits, patch),
                         }));
                     },
                     onQueryReady: (q) => {
