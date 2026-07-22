@@ -26,6 +26,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # expo export strips types without checking them, so a type error would
+      # publish fine and only surface as a runtime crash on the phone.
+      - name: Typecheck (gate - nothing is published if this fails)
+        run: pnpm --filter happy-app typecheck
       - name: Export web build
         working-directory: packages/happy-app
         run: EXPO_WEB_BASE_URL=/happy npx expo export --platform web
