@@ -31,6 +31,8 @@ import { getCurrentRealtimeSessionId, getVoiceSession } from '@/realtime/Realtim
 import { isMutableTool } from "@/components/tools/knownTools";
 import { DecryptedArtifact } from "./artifactTypes";
 import { FeedItem } from "./feedTypes";
+import { getRigActivityIndicators, getRigIdentity } from './rig';
+import { indexSessionsById } from './sessionIdentity';
 
 // Debounce timer for realtimeMode changes
 let realtimeModeDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -81,6 +83,11 @@ export interface SessionRowData {
     subtitle: string;
     avatarId: string;
     flavor: string | null;
+    clientId: string | null;
+    identityLine: string | null;
+    providerKind: string | null;
+    modelName: string | null;
+    activitySummary: string | null;
     state: SessionState;
     // Only present on inactive sessions — active sessions never show "last seen"
     // and activeAt updates on every heartbeat, causing needless deep-equal diffs
@@ -111,12 +118,21 @@ function buildSessionRowData(session: Session, unreadSessionIds?: Set<string>): 
         state = 'waiting';
     }
 
+    const rigIdentity = getRigIdentity(session.metadata);
+    const rigActivity = getRigActivityIndicators(session.metadata);
     return {
         id: session.id,
         name: getSessionName(session),
         subtitle: getSessionSubtitle(session),
         avatarId: getSessionAvatarId(session),
         flavor: session.metadata?.flavor ?? null,
+        clientId: session.metadata?.client?.id ?? null,
+        identityLine: rigIdentity ? `${rigIdentity.clientName} · ${rigIdentity.providerName}` : null,
+        providerKind: session.metadata?.provider?.kind ?? null,
+        modelName: rigIdentity?.modelName ?? null,
+        activitySummary: rigActivity.length > 0
+            ? rigActivity.map((item) => `${item.count}${item.queued ? `+${item.queued}` : ''} ${item.key}`).join(' · ')
+            : null,
         state,
         ...(!session.active && { activeAt: session.activeAt, createdAt: session.createdAt }),
         hasDraft: !!session.draft,
@@ -399,7 +415,7 @@ export const storage = create<StorageState>()((set, get) => {
             const savedLastMessageSentAt = isInitialLoad ? sessionLastMessageSentAt : {};
 
             // Merge new sessions with existing ones
-            const mergedSessions: Record<string, Session> = { ...state.sessions };
+            const mergedSessions: Record<string, Session> = indexSessionsById(Object.values(state.sessions));
 
             // Update sessions with calculated presence using centralized resolver
             sessions.forEach(session => {

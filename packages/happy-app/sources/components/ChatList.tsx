@@ -17,6 +17,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Modal } from '@/modal';
 import { useSessionQuickActions } from '@/hooks/useSessionQuickActions';
 import { resolveControlMode } from '@/sync/controlHandoff';
+import { usesControlledSessionUi } from '@/sync/rig';
 
 const SCROLL_THRESHOLD = 300;
 
@@ -55,7 +56,7 @@ const ListHeader = React.memo((props: { isLoadingOlder: boolean }) => {
 const ListFooter = React.memo((props: { sessionId: string }) => {
     const session = useSession(props.sessionId)!;
     return (
-        <ChatFooter controlledByUser={session.agentState?.controlledByUser || false} />
+        <ChatFooter controlledByUser={usesControlledSessionUi(session.metadata) && (session.agentState?.controlledByUser || false)} />
     )
 });
 
@@ -76,7 +77,7 @@ const ChatListInternal = React.memo((props: {
     // parent re-renders on every wheel tick.
     const showScrollButtonRef = React.useRef(false);
     const session = useSession(props.sessionId);
-    const controlMode = resolveControlMode(session?.agentState?.controlledByUser);
+    const controlMode = resolveControlMode(usesControlledSessionUi(session?.metadata) ? session?.agentState?.controlledByUser : false);
     const previousControlModeRef = React.useRef(controlMode);
 
     React.useEffect(() => {
