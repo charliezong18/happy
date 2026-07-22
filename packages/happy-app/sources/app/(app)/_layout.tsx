@@ -4,6 +4,7 @@ import * as React from 'react';
 import { Typography } from '@/constants/Typography';
 import { createHeader } from '@/components/navigation/Header';
 import { Platform, TouchableOpacity, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { isRunningOnMac } from '@/utils/platform';
 import { useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
@@ -55,11 +56,20 @@ export default function RootLayout() {
             />
             <Stack.Screen
                 name="settings/index"
-                options={{
+                options={({ navigation }) => ({
                     headerShown: true,
                     headerTitle: t('settings.title'),
-                    headerBackTitle: t('common.home')
-                }}
+                    headerBackTitle: t('common.home'),
+                    headerRight: () => (
+                        <TouchableOpacity
+                            onPress={() => navigation.popToTop()}
+                            accessibilityLabel={t('common.home')}
+                            style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+                        >
+                            <Ionicons name="close" size={26} color={theme.colors.header.tint} />
+                        </TouchableOpacity>
+                    ),
+                })}
             />
             <Stack.Screen
                 name="session/[id]"

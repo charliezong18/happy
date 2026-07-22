@@ -90,14 +90,26 @@ interface ExtendedNavigationOptions extends Partial<NativeStackHeaderProps['opti
 }
 
 // Default back button component
-const DefaultBackButton: React.FC<{ tintColor?: string; onPress: () => void }> = ({ tintColor = '#000', onPress }) => {
+const DefaultBackButton: React.FC<{ tintColor?: string; onPress: () => void; label?: string }> = ({ tintColor = '#000', onPress, label }) => {
     return (
-        <Pressable onPress={onPress} hitSlop={15}>
+        <Pressable
+            onPress={onPress}
+            hitSlop={15}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingRight: 8 }}
+        >
             <Ionicons
                 name={Platform.OS === 'ios' ? 'chevron-back' : 'arrow-back'}
                 size={24}
                 color={tintColor}
             />
+            {label ? (
+                <Text
+                    numberOfLines={1}
+                    style={[{ fontSize: 16, marginLeft: 2, color: tintColor || '#000' }, Typography.default('regular')]}
+                >
+                    {label}
+                </Text>
+            ) : null}
         </Pressable>
     );
 };
@@ -148,10 +160,12 @@ const NavigationHeaderComponent: React.FC<NativeStackHeaderProps> = React.memo((
     } else if (back && options.headerBackVisible !== false && !shouldHideBackButton) {
         // Show default back button if can go back and not explicitly hidden
         // Also hide on tablet when at first or second screen
+        const backLabel = typeof options.headerBackTitle === 'string' ? options.headerBackTitle : undefined;
         headerLeftContent = () => (
             <DefaultBackButton
                 tintColor={options.headerTintColor}
                 onPress={() => navigation.goBack()}
+                label={backLabel}
             />
         );
     }
