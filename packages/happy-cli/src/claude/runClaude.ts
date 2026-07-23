@@ -23,6 +23,7 @@ import { projectPath } from '../projectPath';
 import { resolve } from 'node:path';
 import { startOfflineReconnection, connectionState } from '@/utils/serverConnectionErrors';
 import { claudeLocal } from '@/claude/claudeLocal';
+import { generateSessionTitle } from './utils/generateClaudeSessionTitle';
 import { createSessionScanner } from '@/claude/utils/sessionScanner';
 import {
     CLAUDE_GOAL_ACTION_CONFIRMATIONS,
@@ -647,6 +648,21 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         // Claim every file attachment that arrived strictly before this text.
         // New file events from this point on belong to the next user message.
         const attachmentsForThisMessage = await session.drainAttachmentsForUserMessage();
+
+        // 异步生成标题 (Dual-Track Session Naming)
+        // Check if this is the first real user message (excluding commands like /compact) and we don't have a name yet
+        const currentMeta = session.getMetadata();
+        const isSpecialCommand = message.content.text?.startsWith('/');
+        if (!isSpecialCommand && !currentMeta?.name && message.content.text) {
+            // Fire and forget
+            generateSessionTitle(message.content.text).then((title) => {
+                if (title) {
+                    session.updateMetadata((meta) => ({ ...meta, summary: { text: title, updatedAt: Date.now() } }));
+                }
+            }).catch(e => {
+                logger.debug('[loop] Failed to generate session title', e);
+            });
+        }
 
         // Resolve permission mode from meta - pass through as-is, mapping happens at SDK boundary
         let messagePermissionMode: PermissionMode | undefined = currentPermissionMode;

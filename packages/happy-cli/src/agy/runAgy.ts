@@ -33,6 +33,7 @@ import type { AgentMessage } from '@/agent/core';
 import type { PermissionMode } from '@/api/types';
 import { AgyBackend } from './AgyBackend';
 import { DEFAULT_AGY_MODEL } from './constants';
+import { generateSessionTitle } from '@/claude/utils/generateClaudeSessionTitle';
 
 export interface RunAgyOptions {
   credentials: Credentials;
@@ -177,6 +178,18 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
 
   session.onUserMessage((message) => {
     if (!message.content.text) return;
+
+    const currentMeta = session.getMetadata();
+    const isSpecialCommand = message.content.text.startsWith('/');
+    if (!isSpecialCommand && !currentMeta?.name) {
+        generateSessionTitle(message.content.text).then((title) => {
+            if (title) {
+                session.updateMetadata((meta) => ({ ...meta, summary: { text: title, updatedAt: Date.now() } }));
+            }
+        }).catch(e => {
+            logger.debug('[agy] Failed to generate session title', e);
+        });
+    }
 
     if (message.meta?.permissionMode) {
       backend.setPermissionMode(message.meta.permissionMode as PermissionMode);
