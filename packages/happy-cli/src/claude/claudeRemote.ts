@@ -314,7 +314,7 @@ export async function claudeRemote(opts: {
             }
 
             // Buffer Antigravity (agy) rate-limit events
-            if (message.type === 'agy_rate_limit_event') {
+            if ((message as any).type === 'agy_rate_limit_event') {
                 const newUsage = adaptAgyUsageLimits(message, []);
                 for (const win of newUsage.windows) {
                     pendingUsageWindows.set(win.id, win as UsageLimitWindow);
