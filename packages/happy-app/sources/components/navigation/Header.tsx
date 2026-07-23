@@ -120,8 +120,11 @@ const NavigationHeaderComponent: React.FC<NativeStackHeaderProps> = React.memo((
     const extendedOptions = options as ExtendedNavigationOptions;
     const isTablet = useIsTablet();
 
-    // Hide back button on tablet — navigation is handled via sidebar and persistent header
-    const shouldHideBackButton = isTablet;
+    // Hide back button on tablet — navigation is handled via sidebar and persistent header.
+    // Exception: settings pages form their own push stack the sidebar can't unwind, so keep
+    // a clear labeled back button there (matches iOS Settings-style navigation).
+    const isSettingsRoute = route.name.startsWith('settings/');
+    const shouldHideBackButton = isTablet && !isSettingsRoute;
 
     // Extract title - handle both string and function types
     let title: React.ReactNode | null = null;
