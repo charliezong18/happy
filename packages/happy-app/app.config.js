@@ -213,6 +213,7 @@ export default {
         },
         experiments: {
             typedRoutes: true,
+            baseUrl: process.env.EXPO_PUBLIC_BASE_URL || "",
             // Set when exporting the web build for static hosting under a
             // sub-path (e.g. GitHub Pages at /happy). Unset = no effect.
             ...(process.env.EXPO_WEB_BASE_URL ? { baseUrl: process.env.EXPO_WEB_BASE_URL } : {})
