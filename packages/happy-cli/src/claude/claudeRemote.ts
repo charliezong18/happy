@@ -13,7 +13,6 @@ import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
 import { fromRateLimitEvent, windowsFromGetUsage, type UnboundRateLimit, type UsageLimitsPatch, type RateLimitEventInfo } from "./utils/usageLimits";
-import { adaptAgyUsageLimits } from "./utils/agyUsageAdapter";
 import type { UsageLimitWindow } from "@/api/types";
 
 export async function claudeRemote(opts: {
@@ -310,14 +309,6 @@ export async function claudeRemote(opts: {
                     } else if (normalized.unbound) {
                         pendingUnbound = normalized.unbound;
                     }
-                }
-            }
-
-            // Buffer Antigravity (agy) rate-limit events
-            if (message.type === 'agy_rate_limit_event') {
-                const newUsage = adaptAgyUsageLimits(message, []);
-                for (const win of newUsage.windows) {
-                    pendingUsageWindows.set(win.id, win as UsageLimitWindow);
                 }
             }
 
