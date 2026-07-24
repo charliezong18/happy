@@ -62,10 +62,9 @@ export type UsageLimitStatus = 'allowed' | 'allowed_warning' | 'rejected';
 const CHIP_WINDOW_LABELS: Record<string, string> = {
     five_hour: '5h',
     seven_day: '7d',
-    // agy (Antigravity) pools one quota per model family rather than per time
-    // window, so these are families, not durations.
-    agy_gemini: 'agy gem',
-    agy_external: 'agy ext',
+    // agy (Antigravity) sessions report a single headline window; per-model
+    // windows (agy:<modelId>) stay popover-only like other unknown ids.
+    agy: 'agy',
 };
 
 /**

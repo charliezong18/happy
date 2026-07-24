@@ -59,16 +59,20 @@ describe('usage limit helpers', () => {
         expect(chips[0].id).toBe('seven_day');
     });
 
-    it('shows agy pool chips for agy sessions', () => {
-        const chips = getUsageLimitChips({
+    it('chips the agy headline window and leaves per-model windows to the popover', () => {
+        const limits = {
             capturedAt: 1,
             windows: [
-                { id: 'agy_gemini', label: 'agy Gemini', utilization: 12, resetsAt: 100 },
-                { id: 'agy_external', label: 'agy Claude/GPT', utilization: 0, resetsAt: 200 },
+                { id: 'agy', label: 'agy', utilization: 50, resetsAt: 100 },
+                { id: 'agy:gemini-3.1-pro-high', label: 'Gemini 3.1 Pro', utilization: 50, resetsAt: 100 },
+                { id: 'agy:claude-sonnet-4-6', label: 'Claude Sonnet 4.6', utilization: 0, resetsAt: 200 },
             ],
-        }, false);
-        expect(chips.map(c => c.id)).toEqual(['agy_gemini', 'agy_external']);
-        expect(chips.map(c => c.shortLabel)).toEqual(['agy gem', 'agy ext']);
+        };
+        const chips = getUsageLimitChips(limits, false);
+        expect(chips.map(c => c.id)).toEqual(['agy']);
+        expect(chips[0].shortLabel).toBe('agy');
+        // The per-model detail still reaches the popover.
+        expect(getUsageLimitRows(limits).map(r => r.label)).toEqual(['agy', 'Gemini 3.1 Pro', 'Claude Sonnet 4.6']);
     });
 
     it('hides chips for windows without numeric utilization and for absent data', () => {

@@ -33,7 +33,7 @@ import type { AgentMessage } from '@/agent/core';
 import type { PermissionMode } from '@/api/types';
 import { AgyBackend } from './AgyBackend';
 import { DEFAULT_AGY_MODEL } from './constants';
-import { createAgyUsageReader } from './usageQuota';
+import { createAgyUsageCollector } from './agyUsageCollector';
 import { mergeUsageLimits } from '@/claude/utils/usageLimits';
 
 export interface RunAgyOptions {
@@ -200,36 +200,18 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
     session.keepAlive(thinking, 'remote');
   }, 2000);
 
-  // Quota lives behind a separate endpoint (agy itself reports nothing), so we
-  // pull it once at startup and again after each turn. Serialized and throttled:
-  // a pull is one network round trip that must never delay or interleave turns,
-  // and the numbers only move when a turn burns quota.
-  const usageReader = createAgyUsageReader();
-  const USAGE_MIN_INTERVAL_MS = 60_000;
-  let lastUsageFetchAt = 0;
-  let usageChain: Promise<void> = Promise.resolve();
-
-  const scheduleUsageRefresh = () => {
-    usageChain = usageChain
-      .then(async () => {
-        if (Date.now() - lastUsageFetchAt < USAGE_MIN_INTERVAL_MS) return;
-        lastUsageFetchAt = Date.now();
-        const windows = await usageReader.fetchWindows();
-        if (windows.length === 0) return;
-        // Merge rather than replace: the session metadata is shared with any
-        // other backend's windows, and agy only ever owns its own ids.
-        session.updateMetadata((currentMetadata) => ({
-          ...currentMetadata,
-          usageLimits: mergeUsageLimits(currentMetadata.usageLimits, {
-            capturedAt: Date.now(),
-            windows,
-          }),
-        }));
-      })
-      .catch((error) => {
-        logger.debug('[agy] usage refresh failed (ignored):', error);
-      });
-  };
+  // agy reports no quota over its own stream, so usage is pulled from a separate
+  // endpoint at turn boundaries and merged into metadata the same way the Claude
+  // path does.
+  const usageCollector = createAgyUsageCollector({
+    log,
+    onPatch: (patch) => {
+      session.updateMetadata((currentMetadata) => ({
+        ...currentMetadata,
+        usageLimits: mergeUsageLimits(currentMetadata.usageLimits, patch),
+      }));
+    },
+  });
 
   async function handleAbort() {
     log('Abort requested');
@@ -254,7 +236,7 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
   try {
     await backend.startSession();
     log('Backend ready');
-    scheduleUsageRefresh();
+    usageCollector.refresh();
 
     while (!shouldExit) {
       const waitSignal = abortController.signal;
@@ -276,13 +258,14 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
         sendEnvelopes(sessionManager.endTurn('failed'));
       }
       // Also after a failed turn: a quota rejection is exactly when the chip matters.
-      scheduleUsageRefresh();
+      usageCollector.refresh();
       thinking = false;
       session.keepAlive(false, 'remote');
       session.sendSessionEvent({ type: 'ready' });
     }
   } finally {
     clearInterval(keepAliveInterval);
+    usageCollector.stop();
     reconnectionHandle?.cancel();
 
     backend.offMessage(onBackendMessage);
