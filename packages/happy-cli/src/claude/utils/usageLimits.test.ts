@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { fromRateLimitEvent, mergeUsageLimits, synthesizeStatus, windowsFromGetUsage } from './usageLimits';
+import { applyUsageLimitsPatch, fromRateLimitEvent, mergeUsageLimits, synthesizeStatus, windowsFromGetUsage } from './usageLimits';
+import type { AgentState } from '@/api/types';
 
 describe('windowsFromGetUsage', () => {
     it('normalizes ISO resets_at to epoch ms and keeps 0-100 utilization as-is', () => {
@@ -157,5 +158,57 @@ describe('mergeUsageLimits review fixes', () => {
         });
         expect(second.windows.filter(w => w.id === 'plan')).toHaveLength(1);
         expect(second.windows[0].status).toBe('allowed_warning');
+    });
+});
+
+describe('applyUsageLimitsPatch', () => {
+    // The carrier itself: limits ride agent state, not session metadata, and a
+    // write must never clobber the rest of the agent state.
+    function fakeTarget(initial: AgentState) {
+        let state = initial;
+        return {
+            get state() { return state; },
+            updateAgentState(handler: (current: AgentState) => AgentState) {
+                state = handler(state);
+            },
+        };
+    }
+
+    it('writes merged limits onto agent state', () => {
+        const target = fakeTarget({});
+        applyUsageLimitsPatch(target, {
+            capturedAt: 2000,
+            windows: [{ id: 'five_hour', status: 'allowed', utilization: 12, resetsAt: null }],
+        });
+        expect(target.state.usageLimits).toEqual({
+            capturedAt: 2000,
+            windows: [{ id: 'five_hour', status: 'allowed', utilization: 12, resetsAt: null }],
+        });
+    });
+
+    it('merges against the persisted value and leaves the rest of agent state alone', () => {
+        const target = fakeTarget({
+            controlledByUser: true,
+            requests: { 'req-1': { tool: 'Bash', arguments: {}, createdAt: 1 } },
+            usageLimits: {
+                capturedAt: 1,
+                windows: [
+                    { id: 'five_hour', utilization: 40, resetsAt: null },
+                    { id: 'seven_day', utilization: 10, resetsAt: null },
+                ],
+            },
+        });
+
+        applyUsageLimitsPatch(target, {
+            capturedAt: 2000,
+            windows: [{ id: 'five_hour', status: 'allowed_warning', utilization: 91, resetsAt: null }],
+        });
+
+        expect(target.state.controlledByUser).toBe(true);
+        expect(Object.keys(target.state.requests ?? {})).toEqual(['req-1']);
+        expect(target.state.usageLimits?.capturedAt).toBe(2000);
+        // seven_day was not in the patch, so the merge must re-hydrate it.
+        expect(target.state.usageLimits?.windows.map(w => w.id)).toEqual(['five_hour', 'seven_day']);
+        expect(target.state.usageLimits?.windows[0].utilization).toBe(91);
     });
 });

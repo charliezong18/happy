@@ -9,7 +9,7 @@
  * - `get_usage` (pull): all windows at once. Utilization is 0-100,
  *   `resets_at` is an ISO 8601 string, and windows carry no status.
  */
-import type { UsageLimits, UsageLimitWindow, UsageLimitWindowStatus } from '@/api/types';
+import type { AgentState, UsageLimits, UsageLimitWindow, UsageLimitWindowStatus } from '@/api/types';
 
 export type UnboundRateLimit = {
     status: UsageLimitWindowStatus,
@@ -154,4 +154,22 @@ export function mergeUsageLimits(current: UsageLimits | null | undefined, patch:
         }
     }
     return { capturedAt: patch.capturedAt, windows };
+}
+
+/** The slice of ApiSessionClient this module needs, so the carrier is testable. */
+export type UsageLimitsTarget = {
+    updateAgentState(handler: (current: AgentState) => AgentState): void,
+}
+
+/**
+ * Writes a patch to the session. Exists as its own function so the carrier
+ * itself is covered by a test: merge behaviour was already tested, but which
+ * field the result lands on was not, and that is exactly what changed when
+ * limits moved off session metadata.
+ */
+export function applyUsageLimitsPatch(target: UsageLimitsTarget, patch: UsageLimitsPatch): void {
+    target.updateAgentState((current) => ({
+        ...current,
+        usageLimits: mergeUsageLimits(current.usageLimits, patch),
+    }));
 }

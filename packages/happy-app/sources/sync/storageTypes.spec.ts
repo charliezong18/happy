@@ -157,3 +157,60 @@ describe('AgentGoalStatusSchema', () => {
         expect(state.agentGoalStatus?.status).toBe('active');
     });
 });
+
+describe('AgentStateSchema usage limits', () => {
+    it('preserves plan rate-limit windows', () => {
+        const state = AgentStateSchema.parse({
+            usageLimits: {
+                capturedAt: 1710000000000,
+                windows: [
+                    { id: 'five_hour', label: '5h', status: 'allowed', utilization: 42, resetsAt: 1710003600000 },
+                    { id: 'seven_day', status: 'allowed_warning', utilization: 91.5, resetsAt: null },
+                ],
+            },
+        });
+
+        expect(state.usageLimits?.capturedAt).toBe(1710000000000);
+        expect(state.usageLimits?.windows.map(w => w.id)).toEqual(['five_hour', 'seven_day']);
+        expect(state.usageLimits?.windows[1].resetsAt).toBeNull();
+    });
+
+    it('keeps window ids and statuses this app version does not know', () => {
+        const state = AgentStateSchema.parse({
+            usageLimits: {
+                capturedAt: 1,
+                windows: [{ id: 'thirty_day', status: 'throttled_soon', utilization: 5, resetsAt: null }],
+            },
+        });
+
+        expect(state.usageLimits?.windows[0].id).toBe('thirty_day');
+        expect(state.usageLimits?.windows[0].status).toBe('throttled_soon');
+    });
+
+    it('drops a malformed usageLimits value without invalidating the rest of agent state', () => {
+        const state = AgentStateSchema.parse({
+            controlledByUser: true,
+            requests: { 'req-1': { tool: 'Bash', arguments: {}, createdAt: 1 } },
+            agentGoalStatus: {
+                status: 'inactive',
+                source: 'claude',
+                observedAt: 1710000000000,
+            },
+            usageLimits: { capturedAt: 'not a number', windows: 'garbage' },
+        });
+
+        expect(state.usageLimits).toBeUndefined();
+        expect(state.controlledByUser).toBe(true);
+        expect(Object.keys(state.requests ?? {})).toEqual(['req-1']);
+        expect(state.agentGoalStatus?.status).toBe('inactive');
+    });
+
+    it('passes through top-level keys written by newer versions', () => {
+        const state = AgentStateSchema.parse({
+            controlledByUser: false,
+            somethingNewerWrote: { hello: 'world' },
+        }) as Record<string, unknown>;
+
+        expect(state.somethingNewerWrote).toEqual({ hello: 'world' });
+    });
+});
