@@ -325,6 +325,14 @@ export type Metadata = {
   /** Lineage for sessions created via the fork / duplicate flow. */
   parentSessionId?: string
   forkedFromMessageId?: string
+  /**
+   * @deprecated Moved to AgentState.usageLimits. Typed as never-set so the
+   * launcher can strip the legacy value from sessions written before the
+   * move, while nothing can write a value here again. Without the strip every
+   * metadata write would spread the dead field forward and apps built before
+   * the move would keep rendering it with a frozen capturedAt.
+   */
+  usageLimits?: undefined
 };
 
 export type UsageLimitWindowStatus = 'allowed' | 'allowed_warning' | 'rejected'

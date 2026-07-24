@@ -107,7 +107,7 @@ describe('mergeUsageLimits', () => {
         expect(merged.windows).toEqual([{ id: 'plan', status: 'rejected', utilization: 100, resetsAt: null }]);
     });
 
-    it('tolerates malformed current metadata (windows not an array)', () => {
+    it('tolerates malformed current agent state (windows not an array)', () => {
         const merged = mergeUsageLimits({ capturedAt: 1, windows: 'garbage' as any }, {
             capturedAt: 2000,
             windows: [{ id: 'five_hour', utilization: 10, resetsAt: null }],

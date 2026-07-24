@@ -46,7 +46,7 @@ export async function claudeRemote(opts: {
     onCompletionEvent?: (message: string) => void,
     onSessionReset?: () => void,
     onSDKMetadata?: (metadata: { tools?: string[]; slashCommands?: string[]; mcpServers?: { name: string; status: string }[]; skills?: string[] }) => void,
-    /** Per-turn plan rate-limit delta; the launcher merges it into session metadata. */
+    /** Per-turn plan rate-limit delta; the launcher merges it into session agent state. */
     onUsageLimits?: (patch: UsageLimitsPatch) => void
 }) {
 
