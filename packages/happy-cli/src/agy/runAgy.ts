@@ -201,15 +201,15 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
   }, 2000);
 
   // agy reports no quota over its own stream, so usage is pulled from a separate
-  // endpoint at turn boundaries and merged into metadata the same way the Claude
-  // path does.
+  // endpoint at turn boundaries and merged into agent state the same way the
+  // Claude path does.
   const usageCollector = createAgyUsageCollector({
     log,
     onPatch: (patch) => {
       log(`usage limits updated: ${patch.windows.map((w) => `${w.id}=${w.utilization}%`).join(' ')}`);
-      session.updateMetadata((currentMetadata) => ({
-        ...currentMetadata,
-        usageLimits: mergeUsageLimits(currentMetadata.usageLimits, patch),
+      session.updateAgentState((currentAgentState) => ({
+        ...currentAgentState,
+        usageLimits: mergeUsageLimits(currentAgentState.usageLimits, patch),
       }));
     },
   });
