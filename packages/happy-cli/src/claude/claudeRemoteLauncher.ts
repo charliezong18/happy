@@ -402,11 +402,11 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                         }));
                     },
                     onUsageLimits: (patch) => {
-                        // Merging against currentMetadata re-hydrates window
+                        // Merging against currentState re-hydrates window
                         // state across claudeRemote re-entries (mode switches).
-                        session.client.updateMetadata((currentMetadata) => ({
-                            ...currentMetadata,
-                            usageLimits: mergeUsageLimits(currentMetadata.usageLimits, patch),
+                        session.client.updateAgentState((currentState) => ({
+                            ...currentState,
+                            usageLimits: mergeUsageLimits(currentState.usageLimits, patch),
                         }));
                     },
                     onQueryReady: (q) => {
