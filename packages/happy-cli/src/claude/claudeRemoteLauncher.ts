@@ -399,6 +399,11 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                             slashCommands: metadata.slashCommands,
                             mcpServers: metadata.mcpServers,
                             skills: metadata.skills,
+                            // Usage limits now ride agent state. Strip the value
+                            // pre-move CLIs left here, otherwise every metadata
+                            // write spreads it forward and pre-move apps keep
+                            // rendering it with a capturedAt frozen at upgrade.
+                            usageLimits: undefined,
                         }));
                     },
                     onUsageLimits: (patch) => {

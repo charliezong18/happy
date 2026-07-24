@@ -162,8 +162,11 @@ export const AgentStateSchema = z.object({
             resetsAt: z.number().nullish(),
         }).passthrough()),
     }).passthrough().optional().catch(undefined),
-    // Passthrough so agent state written by newer CLI or app versions is never
-    // dropped on the way through this schema, matching MetadataSchema.
+    // Passthrough so top-level agent state keys written by newer CLI or app
+    // versions survive this schema, matching MetadataSchema. Note this only
+    // covers the top level: agentGoalStatus is a strict union with no
+    // field-level catch, so an unknown key added inside it still fails the
+    // whole parse.
 }).passthrough();
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
