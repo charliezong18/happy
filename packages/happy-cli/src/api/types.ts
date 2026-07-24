@@ -325,12 +325,6 @@ export type Metadata = {
   /** Lineage for sessions created via the fork / duplicate flow. */
   parentSessionId?: string
   forkedFromMessageId?: string
-  /**
-   * Plan rate-limit windows reported by the agent backend, backend-neutral.
-   * Written by the CLI via updateMetadata (read-modify-write merge); apps
-   * must tolerate window ids they don't recognize.
-   */
-  usageLimits?: UsageLimits
 };
 
 export type UsageLimitWindowStatus = 'allowed' | 'allowed_warning' | 'rejected'
@@ -413,4 +407,12 @@ export type AgentState = {
     }
   }
   agentGoalStatus?: AgentGoalStatus
+  /**
+   * Plan rate-limit windows reported by the agent backend, backend-neutral.
+   * Lives on agent state rather than metadata because it is volatile runtime
+   * state, not a description of the session. Written by the CLI via
+   * updateAgentState (read-modify-write merge); apps must tolerate window ids
+   * they don't recognize.
+   */
+  usageLimits?: UsageLimits
 }

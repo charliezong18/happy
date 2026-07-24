@@ -42,7 +42,7 @@ export function getContextUsageLevel(value: number | null | undefined, maxValue 
     return 'normal';
 }
 
-// --- Plan rate-limit windows (metadata.usageLimits) ---
+// --- Plan rate-limit windows (agentState.usageLimits) ---
 
 export type UsageLimitWindowLike = {
     id: string;

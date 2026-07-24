@@ -69,23 +69,6 @@ export const MetadataSchema = z.object({
     permissionMode: z.string().nullish(),
     modelMode: z.string().nullish(),
     effortLevel: z.string().nullish(),
-    /**
-     * Plan rate-limit windows reported by the CLI (backend-neutral shape).
-     * Parse-lenient by design: `status` stays a plain string (newer CLIs
-     * may send values this app doesn't know) and the whole field catches to
-     * undefined so a malformed value can never invalidate the entire
-     * metadata object.
-     */
-    usageLimits: z.object({
-        capturedAt: z.number(),
-        windows: z.array(z.object({
-            id: z.string(),
-            label: z.string().optional(),
-            status: z.string().optional(),
-            utilization: z.number().nullish(),
-            resetsAt: z.number().nullish(),
-        }).passthrough()),
-    }).passthrough().optional().catch(undefined),
     // Passthrough so read-modify-write metadata updates from this app never
     // drop fields written by newer CLI or app versions.
 }).passthrough();
@@ -162,7 +145,26 @@ export const AgentStateSchema = z.object({
         toolUseId: z.string().nullish()
     })).nullish(),
     agentGoalStatus: AgentGoalStatusSchema.optional(),
-});
+    /**
+     * Plan rate-limit windows reported by the CLI (backend-neutral shape).
+     * Parse-lenient by design: `status` stays a plain string (newer CLIs
+     * may send values this app doesn't know) and the whole field catches to
+     * undefined so a malformed value can never invalidate the entire
+     * agent state object.
+     */
+    usageLimits: z.object({
+        capturedAt: z.number(),
+        windows: z.array(z.object({
+            id: z.string(),
+            label: z.string().optional(),
+            status: z.string().optional(),
+            utilization: z.number().nullish(),
+            resetsAt: z.number().nullish(),
+        }).passthrough()),
+    }).passthrough().optional().catch(undefined),
+    // Passthrough so agent state written by newer CLI or app versions is never
+    // dropped on the way through this schema, matching MetadataSchema.
+}).passthrough();
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
 
