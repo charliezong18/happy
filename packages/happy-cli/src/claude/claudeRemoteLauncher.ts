@@ -5,7 +5,7 @@ import { RemoteModeDisplay } from "@/ui/ink/RemoteModeDisplay";
 import React from "react";
 import { claudeRemote } from "./claudeRemote";
 import { PermissionHandler } from "./utils/permissionHandler";
-import { mergeUsageLimits } from "./utils/usageLimits";
+import { applyUsageLimitsPatch } from "./utils/usageLimits";
 import { Future } from "@/utils/future";
 import { SDKAssistantMessage, SDKMessage, SDKUserMessage } from "./sdk";
 import { formatClaudeMessageForInk } from "@/ui/messageFormatterInk";
@@ -407,12 +407,9 @@ export async function claudeRemoteLauncher(session: Session): Promise<'switch' |
                         }));
                     },
                     onUsageLimits: (patch) => {
-                        // Merging against currentState re-hydrates window
+                        // Merging against the persisted state re-hydrates window
                         // state across claudeRemote re-entries (mode switches).
-                        session.client.updateAgentState((currentState) => ({
-                            ...currentState,
-                            usageLimits: mergeUsageLimits(currentState.usageLimits, patch),
-                        }));
+                        applyUsageLimitsPatch(session.client, patch);
                     },
                     onQueryReady: (q) => {
                         permissionHandler.setPermissionModeUpdater(async (mode) => {
