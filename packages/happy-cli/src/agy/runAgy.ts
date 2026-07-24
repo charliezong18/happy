@@ -206,6 +206,7 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
   const usageCollector = createAgyUsageCollector({
     log,
     onPatch: (patch) => {
+      log(`usage limits updated: ${patch.windows.map((w) => `${w.id}=${w.utilization}%`).join(' ')}`);
       session.updateMetadata((currentMetadata) => ({
         ...currentMetadata,
         usageLimits: mergeUsageLimits(currentMetadata.usageLimits, patch),
