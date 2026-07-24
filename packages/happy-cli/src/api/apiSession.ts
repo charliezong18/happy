@@ -21,6 +21,7 @@ import {
 } from '@/claude/utils/sessionProtocolMapper';
 import { InvalidateSync } from '@/utils/sync';
 import axios from 'axios';
+import { SessionNamingService } from '../agent/core/SessionNamingService';
 
 /**
  * ACP (Agent Communication Protocol) message data types.
@@ -228,6 +229,7 @@ export class ApiSessionClient extends EventEmitter {
     private pendingOutbox: Array<{ content: string; localId: string }> = [];
     private readonly sendSync: InvalidateSync;
     private readonly receiveSync: InvalidateSync;
+    private hasNamedSession = false;
 
     constructor(token: string, session: Session) {
         super()
@@ -551,6 +553,11 @@ export class ApiSessionClient extends EventEmitter {
     private routeIncomingMessage(message: unknown) {
         const userResult = UserMessageSchema.safeParse(message);
         if (userResult.success) {
+            if (!this.hasNamedSession && userResult.data.content?.text) {
+                this.hasNamedSession = true;
+                SessionNamingService.triggerNaming(this, userResult.data.content.text);
+            }
+
             if (this.pendingMessageCallback) {
                 this.pendingMessageCallback(userResult.data);
             } else {
