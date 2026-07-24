@@ -14,7 +14,6 @@ import {
     getUsageLimitChips,
     getUsageLimitDisplayPercentage,
     getUsageLimitRows,
-    SESSION_STATUS_CONTEXT_MAX,
     type UsageLimitsLike,
     type UsageLimitStatus,
 } from '@/utils/sessionStatusBar';
@@ -52,12 +51,15 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
     const availableEffortLevels = props.availableEffortLevels ?? [];
     const canSelectModel = availableModels.length > 0 && !!props.onModelModeChange;
     const canSelectEffort = availableEffortLevels.length > 0 && !!props.onEffortLevelChange;
+    // Until the session reports its window there is no honest denominator, so
+    // the circle is omitted rather than drawn against a guess — a percentage
+    // that later corrects itself upward reads as the context refilling.
     const contextMaxValue = typeof props.contextWindow === 'number' && Number.isFinite(props.contextWindow) && props.contextWindow > 0
         ? Math.trunc(props.contextWindow)
-        : SESSION_STATUS_CONTEXT_MAX;
-    const contextValue = clampContextSize(props.contextSize, contextMaxValue);
-    const contextPercentage = getContextUsagePercentage(props.contextSize, contextMaxValue);
-    const contextLevel = getContextUsageLevel(props.contextSize, contextMaxValue);
+        : null;
+    const contextValue = contextMaxValue === null ? 0 : clampContextSize(props.contextSize, contextMaxValue);
+    const contextPercentage = contextMaxValue === null ? 0 : getContextUsagePercentage(props.contextSize, contextMaxValue);
+    const contextLevel = contextMaxValue === null ? 'normal' : getContextUsageLevel(props.contextSize, contextMaxValue);
     const contextColor = contextLevel === 'critical'
         ? theme.colors.warningCritical
         : contextLevel === 'warning'
@@ -132,12 +134,14 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
                             onPress={() => setOpenMenu((current) => current === 'limits' ? null : 'limits')}
                         />
                     ))}
-                    <ContextUsageCircle
-                        value={contextValue}
-                        maxValue={contextMaxValue}
-                        percentage={contextPercentage}
-                        color={contextColor}
-                    />
+                    {contextMaxValue !== null ? (
+                        <ContextUsageCircle
+                            value={contextValue}
+                            maxValue={contextMaxValue}
+                            percentage={contextPercentage}
+                            color={contextColor}
+                        />
+                    ) : null}
                 </View>
             </View>
         </View>
