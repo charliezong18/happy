@@ -28,6 +28,7 @@ import { Theme } from '@/theme';
 import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
 import { isRunningOnMac } from '@/utils/platform';
+import { isContextWindowUsable } from '@/utils/sessionStatusBar';
 import { MobileGlassSurface } from './MobileGlass';
 import { AnimatedClickAwayBackdrop } from './AnimatedOverlay';
 import { BubblePressable } from './BubblePressable';
@@ -434,10 +435,12 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
 }));
 
 const getContextWarning = (contextSize: number, alwaysShow: boolean = false, theme: Theme, contextWindow?: number) => {
-    // Until the session reports its window there is no honest denominator, so
-    // nothing is shown rather than dividing by a guess — a percentage that
-    // later corrects itself upward reads as the context refilling.
-    if (typeof contextWindow !== 'number' || !Number.isFinite(contextWindow) || contextWindow <= 0) {
+    // Until the session reports a usable window there is no honest denominator,
+    // so nothing is shown rather than dividing by a guess — a percentage that
+    // later corrects itself upward reads as the context refilling. A window the
+    // context size already exceeds is a wrong denominator too, not a full
+    // context, so it is discarded on the same grounds.
+    if (!isContextWindowUsable(contextSize, contextWindow)) {
         return null;
     }
     const maxContextSize = contextWindow;

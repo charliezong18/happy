@@ -13,6 +13,7 @@ import {
     formatUsageLimitAge,
     getContextUsageLevel,
     getContextUsagePercentage,
+    isContextWindowUsable,
     getUsageLimitChips,
     getUsageLimitDisplayPercentage,
     getUsageLimitRows,
@@ -53,10 +54,12 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
     const availableEffortLevels = props.availableEffortLevels ?? [];
     const canSelectModel = availableModels.length > 0 && !!props.onModelModeChange;
     const canSelectEffort = availableEffortLevels.length > 0 && !!props.onEffortLevelChange;
-    // Until the session reports its window there is no honest denominator, so
-    // the circle is omitted rather than drawn against a guess — a percentage
-    // that later corrects itself upward reads as the context refilling.
-    const contextMaxValue = typeof props.contextWindow === 'number' && Number.isFinite(props.contextWindow) && props.contextWindow > 0
+    // Until the session reports a usable window there is no honest denominator,
+    // so the circle is omitted rather than drawn against a guess — a percentage
+    // that later corrects itself upward reads as the context refilling. A window
+    // the context size already exceeds is a wrong denominator too, not a full
+    // context, so it is discarded on the same grounds.
+    const contextMaxValue = isContextWindowUsable(props.contextSize, props.contextWindow)
         ? Math.trunc(props.contextWindow)
         : null;
     const contextValue = contextMaxValue === null ? 0 : clampContextSize(props.contextSize, contextMaxValue);

@@ -13,6 +13,32 @@ export function resolveStatusBarGitBranch(
     return metadataBranch || null;
 }
 
+/**
+ * A prompt cannot exceed the model's context window — the request would be
+ * rejected before it was ever sent. So a window smaller than an observed
+ * context size is not a full context, it is a wrong denominator: the agent SDK
+ * reports a model's nominal window, which for some models understates the one
+ * the account actually serves (the same model has been observed reporting both
+ * 200K and 1M in a single session).
+ *
+ * Clamping that to 100% would pin the indicator at "0% left" for the rest of
+ * the session and swallow the real signal when the context does fill up, so
+ * treat the window as unusable instead and show nothing — the same choice made
+ * when no window has been reported at all.
+ */
+export function isContextWindowUsable(
+    value: number | null | undefined,
+    maxValue: number | null | undefined,
+): maxValue is number {
+    if (typeof maxValue !== 'number' || !Number.isFinite(maxValue) || maxValue <= 0) {
+        return false;
+    }
+    if (typeof value === 'number' && Number.isFinite(value) && value > maxValue) {
+        return false;
+    }
+    return true;
+}
+
 export function clampContextSize(value: number | null | undefined, maxValue: number): number {
     if (!Number.isFinite(value) || !Number.isFinite(maxValue) || maxValue <= 0) {
         return 0;
