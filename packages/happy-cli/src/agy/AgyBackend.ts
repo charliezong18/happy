@@ -16,6 +16,9 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import type { PermissionMode } from '@/api/types';
 import type {
   AgentBackend,
@@ -115,8 +118,33 @@ export class AgyBackend implements AgentBackend {
       extraAddDirs?: string[];
     },
   ): Promise<void> {
+    let finalPrompt = prompt;
+
+    // On the first turn, read CLAUDE.md from the workspace and prepend it to the prompt.
+    if (this.conversationId === null) {
+      const globalClaudeMdPath = path.join(os.homedir(), '.claude', 'CLAUDE.md');
+      const localClaudeMdPath = path.join(this.cwd, 'CLAUDE.md');
+      let combinedContext = '';
+
+      if (fs.existsSync(globalClaudeMdPath)) {
+        try {
+          combinedContext += fs.readFileSync(globalClaudeMdPath, 'utf8') + '\n\n';
+        } catch (e) {}
+      }
+      if (fs.existsSync(localClaudeMdPath)) {
+        try {
+          combinedContext += fs.readFileSync(localClaudeMdPath, 'utf8') + '\n\n';
+        } catch (e) {}
+      }
+
+      if (combinedContext) {
+        finalPrompt = `<project_context>\n${combinedContext.trim()}\n</project_context>\n\n${prompt}`;
+        this.log('injected CLAUDE.md context into the first prompt');
+      }
+    }
+
     const args = buildAgyArgs({
-      prompt,
+      prompt: finalPrompt,
       model: this.model,
       effort: this.effort,
       conversationId: this.conversationId,
