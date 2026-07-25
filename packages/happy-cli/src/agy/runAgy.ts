@@ -229,9 +229,39 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
 
   session.rpcHandlerManager.registerHandler('abort', handleAbort);
   registerKillSessionHandler(session.rpcHandlerManager, async () => {
+    // Mirror runCodex's handleKillSession: archive and exit explicitly instead
+    // of relying on the main loop to unwind — an in-flight await can keep the
+    // process alive forever, leaving the session un-archivable from the app.
+    // The watchdog guarantees death even if cleanup itself hangs.
+    setTimeout(() => {
+      log('killSession watchdog fired; forcing exit');
+      process.exit(1);
+    }, 5000);
+
     shouldExit = true;
     messageQueue.close();
     await handleAbort();
+
+    try {
+      clearInterval(keepAliveInterval);
+      usageCollector.stop();
+      session.updateMetadata((currentMetadata) => ({
+        ...currentMetadata,
+        lifecycleState: 'archived',
+        lifecycleStateSince: Date.now(),
+        archivedBy: 'cli',
+        archiveReason: 'User terminated',
+      }));
+      session.sendSessionDeath();
+      await session.flush();
+      await session.close();
+      await backend.dispose();
+      log('Session terminated by killSession; exiting');
+      process.exit(0);
+    } catch (error) {
+      logger.debug('[agy] killSession cleanup failed:', error);
+      process.exit(1);
+    }
   });
 
   try {
