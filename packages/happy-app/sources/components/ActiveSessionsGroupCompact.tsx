@@ -8,7 +8,7 @@ import { type SessionState, formatPathRelativeToHome, vibingMessages, formatLast
 import { Avatar } from './Avatar';
 import { Typography } from '@/constants/Typography';
 import { StatusDot } from './StatusDot';
-import { useAllMachines, useSessionGitStatus } from '@/sync/storage';
+import { useAllMachines, useSessionGitStatus, useSetting } from '@/sync/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
@@ -226,9 +226,15 @@ const CompactSessionRow = React.memo(({ session, selected, showBorder }: { sessi
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const baseStatus = STATUS_CONFIG[session.state];
-    // Override to solid purple when session has unread results (distinct from pulsing blue = thinking)
-    const status = session.hasUnread
-        ? { ...baseStatus, color: '#AF52DE', dotColor: '#AF52DE', isPulsing: false, isConnected: baseStatus.isConnected }
+    // Override to a solid color when session has unread results; purple (toggleable
+    // in appearance settings) is distinct from the pulsing blue = thinking dot.
+    // Only override while the session is settled — if it started working again
+    // (or waits on a permission), the live state takes precedence over unread.
+    const unreadIndicatorPurple = useSetting('unreadIndicatorPurple');
+    const unreadColor = unreadIndicatorPurple ? '#AF52DE' : '#007AFF';
+    const showUnread = session.hasUnread && session.state !== 'thinking' && session.state !== 'permission_required';
+    const status = showUnread
+        ? { ...baseStatus, color: unreadColor, dotColor: unreadColor, isPulsing: false, isConnected: baseStatus.isConnected }
         : baseStatus;
     const navigateToSession = useNavigateToSession();
     const swipeableRef = React.useRef<Swipeable | null>(null);
@@ -271,7 +277,7 @@ const CompactSessionRow = React.memo(({ session, selected, showBorder }: { sessi
     const renderLeadingIndicator = () => {
         let indicator: React.ReactNode = null;
 
-        if (session.hasUnread) {
+        if (showUnread) {
             indicator = <StatusDot color={status.dotColor} isPulsing={false} />;
         } else if (session.state === 'waiting' && session.hasDraft) {
             indicator = (
