@@ -43,6 +43,9 @@ import { resolveAbsolutePath } from '@/utils/pathUtils';
 import { formatPathRelativeToHome, formatLastSeen } from '@/utils/sessionUtils';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { useNewSessionDraft } from '@/hooks/useNewSessionDraft';
+import { useImagePicker } from '@/hooks/useImagePicker';
+import { useWebImagePaste } from '@/hooks/useWebImagePaste';
+import { AgentInputAttachmentStrip } from '@/components/AgentInputAttachmentStrip';
 import { useShallow } from 'zustand/react/shallow';
 import type { MultiTextInputHandle } from '@/components/MultiTextInput';
 import { Modal } from '@/modal';
@@ -754,6 +757,34 @@ function NewSessionScreen() {
         worktreeKey: s.worktreeKey,
         setWorktreeKey: s.setWorktreeKey,
     })));
+    // Image attachments for the first message (expImageUpload feature).
+    // We reuse useImagePicker for the pick/paste mechanics, then mirror its
+    // state into the draft store (in-memory only — picker URIs are temporary)
+    // so attachments staged on the Home dock or before navigating away
+    // survive until the session spawns.
+    const expImageUpload = useSetting('expImageUpload');
+    const {
+        selectedImages,
+        pickImages,
+        removeImage,
+        clearImages,
+        addImages,
+    } = useImagePicker();
+    // Seed the picker from the draft exactly once on mount.
+    const attachmentsSeededRef = React.useRef(false);
+    React.useEffect(() => {
+        if (attachmentsSeededRef.current) return;
+        attachmentsSeededRef.current = true;
+        const staged = useNewSessionDraft.getState().attachments;
+        if (staged.length > 0) addImages(staged);
+    }, [addImages]);
+    // Mirror back on every change (skip the initial seed pass).
+    React.useEffect(() => {
+        if (!attachmentsSeededRef.current) return;
+        useNewSessionDraft.getState().setAttachments(selectedImages);
+    }, [selectedImages]);
+    useWebImagePaste(expImageUpload ? addImages : undefined);
+
     const selectedAgent = draft.agentType;
     const setSelectedAgent = draft.setAgentType;
     const selectedMachineId = draft.selectedMachineId;
@@ -1299,9 +1330,10 @@ function NewSessionScreen() {
                     // re-render the screen on every keystroke).
                     const draftState = useNewSessionDraft.getState();
                     const trimmedPrompt = draftState.input.trim();
-                    const attachments = draftState.attachments;
+                    const attachments = expImageUpload ? draftState.attachments : [];
                     draftState.setInput('');
                     draftState.setAttachments([]);
+                    clearImages();
 
                     // Send initial message if provided
                     if (trimmedPrompt || attachments.length > 0) {
@@ -1334,7 +1366,7 @@ function NewSessionScreen() {
         } finally {
             setIsSpawning(false);
         }
-    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, router, navigateToSession, currentPermission.key, currentModelKey, currentEffort?.key, effectiveAgentDefaults.permissionMode, effectiveAgentDefaults.modelMode, effectiveAgentDefaults.effortLevel, worktreeKey]);
+    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, router, navigateToSession, currentPermission.key, currentModelKey, currentEffort?.key, effectiveAgentDefaults.permissionMode, effectiveAgentDefaults.modelMode, effectiveAgentDefaults.effortLevel, worktreeKey, expImageUpload, clearImages]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
     React.useEffect(() => {
@@ -1836,6 +1868,12 @@ function NewSessionScreen() {
                 : undefined}
             style={[styles.inputBox, isNativeMobile && styles.mobileInputBox]}
         >
+            {expImageUpload && selectedImages.length > 0 && (
+                <AgentInputAttachmentStrip
+                    images={selectedImages}
+                    onRemove={removeImage}
+                />
+            )}
             <View style={[styles.inputField, isNativeMobile && styles.mobileInputField]}>
                 <PromptInput
                     ref={composerInputRef}
@@ -1851,7 +1889,36 @@ function NewSessionScreen() {
                 styles.actionButtonsContainer,
                 isNativeMobile && styles.mobileActionButtonsContainer,
             ]}>
-                {!isNativeMobile && <View style={styles.actionButtonsLeft} />}
+                {!isNativeMobile && (
+                    <View style={styles.actionButtonsLeft}>
+                        {expImageUpload && (
+                            <Pressable
+                                onPress={() => void pickImages()}
+                                hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                style={(p) => ({
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: 16,
+                                    paddingHorizontal: 8,
+                                    paddingVertical: 6,
+                                    height: 32,
+                                    opacity: p.pressed ? 0.7 : 1,
+                                })}
+                                accessibilityRole="button"
+                                accessibilityLabel="Add image"
+                            >
+                                <Ionicons
+                                    name="image-outline"
+                                    size={16}
+                                    color={selectedImages.length > 0
+                                        ? theme.colors.radio.active
+                                        : theme.colors.button.secondary.tint}
+                                />
+                            </Pressable>
+                        )}
+                    </View>
+                )}
                 {isNativeMobile && (
                     <View style={styles.mobileComposerLeftControls}>
                         <BubblePressable
