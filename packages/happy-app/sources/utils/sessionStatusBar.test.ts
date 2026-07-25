@@ -8,6 +8,7 @@ import {
     getUsageLimitDisplayPercentage,
     getUsageLimitRows,
     getUsageLimitStatus,
+    isContextWindowUsable,
     resolveStatusBarGitBranch,
 } from './sessionStatusBar';
 
@@ -24,6 +25,32 @@ describe('session status bar helpers', () => {
         expect(getContextUsageLevel(89, 100)).toBe('normal');
         expect(getContextUsageLevel(90, 100)).toBe('warning');
         expect(getContextUsageLevel(95, 100)).toBe('critical');
+    });
+
+    describe('isContextWindowUsable', () => {
+        it('rejects a window that is missing or not a positive size', () => {
+            expect(isContextWindowUsable(50, undefined)).toBe(false);
+            expect(isContextWindowUsable(50, null)).toBe(false);
+            expect(isContextWindowUsable(50, 0)).toBe(false);
+            expect(isContextWindowUsable(50, -1)).toBe(false);
+            expect(isContextWindowUsable(50, Number.NaN)).toBe(false);
+        });
+
+        it('accepts a window the context fits in, including exactly full', () => {
+            expect(isContextWindowUsable(50, 100)).toBe(true);
+            expect(isContextWindowUsable(100, 100)).toBe(true);
+            expect(isContextWindowUsable(null, 100)).toBe(true);
+            expect(isContextWindowUsable(undefined, 100)).toBe(true);
+        });
+
+        it('rejects a window the context has already exceeded', () => {
+            // The API rejects a prompt larger than the window, so observing one
+            // means the reported window is wrong rather than the context full.
+            expect(isContextWindowUsable(101, 100)).toBe(false);
+            // Observed in a real session: the SDK reported opus-5 at 200K while
+            // the same session sustained prompts well past 350K.
+            expect(isContextWindowUsable(355_199, 200_000)).toBe(false);
+        });
     });
 
     it('reports nothing when the window is not a usable size', () => {
