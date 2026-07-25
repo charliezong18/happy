@@ -21,7 +21,7 @@ import {
 } from '@/claude/utils/sessionProtocolMapper';
 import { InvalidateSync } from '@/utils/sync';
 import axios from 'axios';
-import { SessionNamingService } from '../agent/core/SessionNamingService';
+import { generateSessionTitle } from '@/claude/utils/generateClaudeSessionTitle';
 
 /**
  * ACP (Agent Communication Protocol) message data types.
@@ -553,9 +553,20 @@ export class ApiSessionClient extends EventEmitter {
     private routeIncomingMessage(message: unknown) {
         const userResult = UserMessageSchema.safeParse(message);
         if (userResult.success) {
-            if (!this.hasNamedSession && userResult.data.content?.text) {
+            const firstText = userResult.data.content?.text;
+            if (!this.hasNamedSession && firstText && !firstText.startsWith('/') && !this.getMetadata()?.name) {
                 this.hasNamedSession = true;
-                SessionNamingService.triggerNaming(this, userResult.data.content.text);
+                // Fire and forget - never block message routing on title generation
+                generateSessionTitle(firstText).then((title) => {
+                    if (title) {
+                        this.updateMetadata((metadata) => ({
+                            ...metadata,
+                            summary: { text: title, updatedAt: Date.now() }
+                        }));
+                    }
+                }).catch((e) => {
+                    logger.debug('[SessionNaming] Failed to generate session title', e);
+                });
             }
 
             if (this.pendingMessageCallback) {
