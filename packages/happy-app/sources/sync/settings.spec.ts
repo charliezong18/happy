@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { settingsParse, applySettings, settingsDefaults, settingsToSyncPayload, type Settings } from './settings';
+import { settingsParse, applySettings, restoreDroppedAgentDefaults, settingsDefaults, settingsToSyncPayload, type Settings } from './settings';
 
 describe('settings', () => {
     describe('settingsParse', () => {
@@ -219,17 +219,17 @@ describe('settings', () => {
     });
 
     describe('settingsToSyncPayload', () => {
-        it('omits empty agent default overrides', () => {
-            expect(settingsToSyncPayload(settingsDefaults)).not.toHaveProperty('agentDefaultOverrides');
+        it('sends an explicit empty object when there are no overrides', () => {
+            expect(settingsToSyncPayload(settingsDefaults)).toMatchObject({ agentDefaultOverrides: {} });
         });
 
-        it('omits empty per-agent override objects', () => {
+        it('compacts empty per-agent override objects to an explicit empty object', () => {
             expect(settingsToSyncPayload({
                 ...settingsDefaults,
                 agentDefaultOverrides: {
                     codex: {},
                 },
-            })).not.toHaveProperty('agentDefaultOverrides');
+            })).toMatchObject({ agentDefaultOverrides: {} });
         });
 
         it('keeps user-selected agent default overrides', () => {
@@ -455,6 +455,51 @@ describe('settings', () => {
 
             expect(merged.experiments).toBe(true);
             expect(merged.dismissedCLIWarnings).toEqual(pendingChanges.dismissedCLIWarnings);
+        });
+    });
+
+    describe('restoreDroppedAgentDefaults', () => {
+        const localOverrides = {
+            claude: { modelMode: 'claude-opus-5', effortLevel: 'xhigh' },
+        };
+
+        it('restores local overrides when the raw blob has no agentDefaultOverrides key', () => {
+            const raw = { schemaVersion: 2, viewInline: false };
+            const parsed = settingsParse(raw);
+
+            const { settings, restored } = restoreDroppedAgentDefaults(raw, parsed, localOverrides);
+
+            expect(restored).toBe(true);
+            expect(settings.agentDefaultOverrides).toEqual(localOverrides);
+        });
+
+        it('respects an explicit empty object as an intentional clear', () => {
+            const raw = { schemaVersion: 2, agentDefaultOverrides: {} };
+            const parsed = settingsParse(raw);
+
+            const { settings, restored } = restoreDroppedAgentDefaults(raw, parsed, localOverrides);
+
+            expect(restored).toBe(false);
+            expect(settings.agentDefaultOverrides).toEqual({});
+        });
+
+        it('keeps server overrides when the key is present', () => {
+            const raw = { schemaVersion: 2, agentDefaultOverrides: { codex: { modelMode: 'gpt-5.5' } } };
+            const parsed = settingsParse(raw);
+
+            const { settings, restored } = restoreDroppedAgentDefaults(raw, parsed, localOverrides);
+
+            expect(restored).toBe(false);
+            expect(settings.agentDefaultOverrides).toEqual({ codex: { modelMode: 'gpt-5.5' } });
+        });
+
+        it('does nothing when there is no local value worth restoring', () => {
+            const raw = { schemaVersion: 2 };
+            const parsed = settingsParse(raw);
+
+            expect(restoreDroppedAgentDefaults(raw, parsed, {}).restored).toBe(false);
+            expect(restoreDroppedAgentDefaults(raw, parsed, { claude: {} }).restored).toBe(false);
+            expect(restoreDroppedAgentDefaults(null, parsed, localOverrides).restored).toBe(true);
         });
     });
 });

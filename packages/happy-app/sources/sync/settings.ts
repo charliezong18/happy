@@ -193,10 +193,34 @@ export function settingsToSyncPayload(settings: Settings): Partial<Settings> {
             value && typeof value === 'object' && Object.keys(value).length > 0
         )),
     ) as Settings['agentDefaultOverrides'];
-    if (Object.keys(compactAgentOverrides).length === 0) {
-        delete result.agentDefaultOverrides;
-    } else {
-        result.agentDefaultOverrides = compactAgentOverrides;
-    }
+    // Always include the key, even when empty: an intentional clear is an
+    // explicit {} on the wire, so a payload with the key missing entirely can
+    // only come from a writer that lost it (see restoreDroppedAgentDefaults).
+    result.agentDefaultOverrides = compactAgentOverrides;
     return result;
+}
+
+/**
+ * Guard against agentDefaultOverrides being silently dropped from a server
+ * settings blob by a stale writer (old client or stuck pending flush doing a
+ * full-blob write without the key). An intentional clear is always an
+ * explicit {} (settingsToSyncPayload), so when the raw blob has no
+ * agentDefaultOverrides key at all while we hold a non-empty local value,
+ * treat it as a lost update and restore the local value.
+ */
+export function restoreDroppedAgentDefaults(
+    rawServerSettings: unknown,
+    parsed: Settings,
+    localOverrides: Settings['agentDefaultOverrides'] | null | undefined,
+): { settings: Settings; restored: boolean } {
+    const rawHasKey = !!rawServerSettings
+        && typeof rawServerSettings === 'object'
+        && 'agentDefaultOverrides' in (rawServerSettings as Record<string, unknown>);
+    const localHasEntries = !!localOverrides && Object.values(localOverrides).some((value) => (
+        value && typeof value === 'object' && Object.keys(value).length > 0
+    ));
+    if (rawHasKey || !localHasEntries) {
+        return { settings: parsed, restored: false };
+    }
+    return { settings: { ...parsed, agentDefaultOverrides: localOverrides }, restored: true };
 }
