@@ -19,7 +19,7 @@ import { layout } from './layout';
 import { useNavigateToSession } from '@/hooks/useNavigateToSession';
 import { SessionActionsAnchor, SessionActionsPopover } from './SessionActionsPopover';
 import { useSessionActionAlert } from '@/hooks/useSessionQuickActions';
-import { useSettingMutable } from '@/sync/storage';
+import { useSetting, useSettingMutable } from '@/sync/storage';
 import { t } from '@/text';
 import { SessionShortcutHintBadge } from './ShortcutHints';
 import { ProviderIcon } from './ProviderIcon';
@@ -430,16 +430,22 @@ const SessionItem = React.memo(({ session, selected, isFirst, isLast, isSingle }
     const navigateToSession = useNavigateToSession();
     const [actionsAnchor, setActionsAnchor] = React.useState<SessionActionsAnchor | null>(null);
     const baseStatus = STATUS_CONFIG[session.state];
-    // Override to solid purple when session has unread results (distinct from pulsing blue = thinking)
-    const status = session.hasUnread
-        ? { ...baseStatus, color: '#AF52DE', dotColor: '#AF52DE', isPulsing: false, isConnected: baseStatus.isConnected }
+    // Override to a solid color when session has unread results; purple (toggleable
+    // in appearance settings) is distinct from the pulsing blue = thinking dot.
+    // Only override while the session is settled — if it started working again
+    // (or waits on a permission), the live state takes precedence over unread.
+    const unreadIndicatorPurple = useSetting('unreadIndicatorPurple');
+    const unreadColor = unreadIndicatorPurple ? '#AF52DE' : '#007AFF';
+    const showUnread = session.hasUnread && session.state !== 'thinking' && session.state !== 'permission_required';
+    const status = showUnread
+        ? { ...baseStatus, color: unreadColor, dotColor: unreadColor, isPulsing: false, isConnected: baseStatus.isConnected }
         : baseStatus;
 
     const vibingMessage = React.useMemo(() => {
         return vibingMessages[Math.floor(Math.random() * vibingMessages.length)].toLowerCase() + '…';
     }, [session.state]);
 
-    const statusText = session.hasUnread
+    const statusText = showUnread
         ? t('status.unread')
         : session.state === 'thinking'
             ? vibingMessage
