@@ -226,9 +226,9 @@ const CompactSessionRow = React.memo(({ session, selected, showBorder }: { sessi
     const styles = stylesheet;
     const { theme } = useUnistyles();
     const baseStatus = STATUS_CONFIG[session.state];
-    // Override to solid blue when session has unread results
+    // Override to solid purple when session has unread results (distinct from pulsing blue = thinking)
     const status = session.hasUnread
-        ? { ...baseStatus, color: '#007AFF', dotColor: '#007AFF', isPulsing: false, isConnected: baseStatus.isConnected }
+        ? { ...baseStatus, color: '#AF52DE', dotColor: '#AF52DE', isPulsing: false, isConnected: baseStatus.isConnected }
         : baseStatus;
     const navigateToSession = useNavigateToSession();
     const swipeableRef = React.useRef<Swipeable | null>(null);
