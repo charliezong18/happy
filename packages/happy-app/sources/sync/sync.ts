@@ -25,7 +25,7 @@ import { syncCurrentPushToken } from './pushRegistration';
 import { Platform, AppState, type AppStateStatus } from 'react-native';
 import { isRunningOnMac } from '@/utils/platform';
 import { NormalizedMessage, normalizeRawMessage, RawRecord } from './typesRaw';
-import { applySettings, Settings, settingsDefaults, settingsParse, settingsToSyncPayload, SUPPORTED_SCHEMA_VERSION } from './settings';
+import { applySettings, restoreDroppedAgentDefaults, Settings, settingsDefaults, settingsParse, settingsToSyncPayload, SUPPORTED_SCHEMA_VERSION } from './settings';
 import { Profile, profileParse } from './profile';
 import { loadPendingSettings, savePendingSettings } from './persistence';
 import {
@@ -763,6 +763,27 @@ class Sync {
             ? applySettings(serverSettings, this.pendingSettings)
             : serverSettings;
         storage.getState().applySettings(merged, version);
+    }
+
+    /**
+     * Parse a decrypted server settings blob, restoring agentDefaultOverrides
+     * if a stale writer dropped the key. When restored, the value is also
+     * queued as a pending change so the server copy heals on the next flush.
+     */
+    private guardServerSettings = (raw: unknown): Settings => {
+        const parsed = raw ? settingsParse(raw) : { ...settingsDefaults };
+        const { settings, restored } = restoreDroppedAgentDefaults(
+            raw,
+            parsed,
+            storage.getState().settings.agentDefaultOverrides,
+        );
+        if (restored) {
+            console.warn('⚠️ Server settings lost agentDefaultOverrides — restoring local value and re-syncing');
+            this.pendingSettings = { ...this.pendingSettings, agentDefaultOverrides: settings.agentDefaultOverrides };
+            savePendingSettings(this.pendingSettings);
+            this.settingsSync.invalidate();
+        }
+        return settings;
     }
 
     applySettings = (delta: Partial<Settings>) => {
@@ -1598,10 +1619,10 @@ class Sync {
                     break;
                 }
                 if (data.error === 'version-mismatch') {
-                    // Parse server settings
-                    const serverSettings = data.currentSettings
-                        ? settingsParse(await this.encryption.decryptRaw(data.currentSettings))
-                        : { ...settingsDefaults };
+                    // Parse server settings (guarded against dropped agent defaults)
+                    const serverSettings = this.guardServerSettings(
+                        data.currentSettings ? await this.encryption.decryptRaw(data.currentSettings) : null,
+                    );
 
                     // Merge: server base + our pending changes (our changes win)
                     const mergedSettings = applySettings(serverSettings, this.pendingSettings);
@@ -1649,13 +1670,10 @@ class Sync {
             settingsVersion: number
         };
 
-        // Parse response
-        let parsedSettings: Settings;
-        if (data.settings) {
-            parsedSettings = settingsParse(await this.encryption.decryptRaw(data.settings));
-        } else {
-            parsedSettings = { ...settingsDefaults };
-        }
+        // Parse response (guarded against dropped agent defaults)
+        const parsedSettings: Settings = this.guardServerSettings(
+            data.settings ? await this.encryption.decryptRaw(data.settings) : null,
+        );
 
         // Log
         console.log('settings', JSON.stringify({
@@ -2373,7 +2391,7 @@ class Sync {
             if (accountUpdate.settings?.value) {
                 try {
                     const decryptedSettings = await this.encryption.decryptRaw(accountUpdate.settings.value);
-                    const parsedSettings = settingsParse(decryptedSettings);
+                    const parsedSettings = this.guardServerSettings(decryptedSettings);
 
                     // Version compatibility check
                     const settingsSchemaVersion = parsedSettings.schemaVersion ?? 1;
