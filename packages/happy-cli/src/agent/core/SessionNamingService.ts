@@ -53,7 +53,8 @@ Constraints:
           session.updateMetadata((metadata) => ({
              ...metadata,
              summary: {
-               text: title.trim()
+               text: title.trim(),
+               updatedAt: Date.now()
              }
           }));
         }
