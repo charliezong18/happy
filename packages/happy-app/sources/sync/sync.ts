@@ -1025,8 +1025,8 @@ class Sync {
             // before applySessions below.
             const processedSession = {
                 ...session,
-                thinking: known?.thinking ?? false,
-                thinkingAt: known?.thinkingAt ?? 0,
+                thinking: false,
+                thinkingAt: 0,
                 metadata,
                 agentState
             };
