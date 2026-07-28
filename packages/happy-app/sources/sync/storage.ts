@@ -248,7 +248,9 @@ interface StorageState {
 // Helper function to build unified list view data from sessions and machines
 function buildSessionListViewData(
     sessions: Record<string, Session>,
-    unreadSessionIds?: Set<string>,
+    // Required on purpose: an omitted set silently rebuilds the list with
+    // hasUnread=false everywhere — exactly the bug this parameter caused twice.
+    unreadSessionIds: Set<string>,
 ): SessionListViewItem[] {
     // Separate active and inactive sessions
     const activeSessions: Session[] = [];
