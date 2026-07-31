@@ -86,6 +86,9 @@ export type UsageLimitStatus = 'allowed' | 'allowed_warning' | 'rejected';
 const CHIP_WINDOW_LABELS: Record<string, string> = {
     five_hour: '5h',
     seven_day: '7d',
+    // Model-scoped weekly allotment the CLI derives from the backend's
+    // scoped-limits array; other scoped ids stay popover-only.
+    weekly_fable: 'fable',
     // agy (Antigravity) sessions report a single headline window; per-model
     // windows (agy:<modelId>) stay popover-only like other unknown ids.
     agy: 'agy',
@@ -153,7 +156,7 @@ export function nextUsageLimitExpiryDelay(limits: UsageLimitsLike, now: number):
 }
 
 /**
- * Chips normally show only the well-known windows (5h/7d/agy) with a numeric
+ * Chips normally show only the well-known windows (5h/7d/fable/agy) with a numeric
  * utilization. If none exist, surface one critical unknown/unbound window so
  * a rejected or warning state can never disappear entirely. When `collapsed`
  * (narrow bar), only the window closest to its limit survives. Windows whose
