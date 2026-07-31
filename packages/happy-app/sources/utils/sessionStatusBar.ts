@@ -132,6 +132,27 @@ export function isUsageLimitWindowExpired(window: UsageLimitWindowLike, now: num
 }
 
 /**
+ * Milliseconds until the next non-expired window crosses its expiry, or null
+ * when nothing is pending. Drives the component's re-render timer: the CLI
+ * only flushes on results, so nothing else updates an idle session — without
+ * this a session left open across a reset boundary would keep rendering the
+ * closed period's chip until the user interacted.
+ */
+export function nextUsageLimitExpiryDelay(limits: UsageLimitsLike, now: number): number | null {
+    if (!limits || !Array.isArray(limits.windows)) {
+        return null;
+    }
+    let next: number | null = null;
+    for (const w of limits.windows) {
+        if (typeof w.resetsAt !== 'number' || !Number.isFinite(w.resetsAt)) continue;
+        if (isUsageLimitWindowExpired(w, now)) continue;
+        const delay = w.resetsAt + EXPIRED_WINDOW_GRACE_MS - now;
+        if (next === null || delay < next) next = delay;
+    }
+    return next;
+}
+
+/**
  * Chips normally show only the well-known windows (5h/7d/agy) with a numeric
  * utilization. If none exist, surface one critical unknown/unbound window so
  * a rejected or warning state can never disappear entirely. When `collapsed`

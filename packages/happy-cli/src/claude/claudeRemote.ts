@@ -192,10 +192,14 @@ export async function claudeRemote(opts: {
     const resetBoundary = new ResetBoundaryTracker();
     const flushUsageLimits = async () => {
         if (!opts.onUsageLimits) return;
+        // One timestamp per flush: boundaries buffered while the seed awaits
+        // the network are judged against flush start, so a reset landing in
+        // that gap still counts as future and re-arms on the next flush.
+        const flushNow = Date.now();
         // A tracked window's reset moment passed: its persisted percentage
         // describes a closed period, and allowed events will never refresh
         // it — pull a fresh snapshot.
-        if (usageSeeded && resetBoundary.boundaryPassed(Date.now())) {
+        if (usageSeeded && resetBoundary.boundaryPassed(flushNow)) {
             usageSeeded = false;
         }
         let seededThisFlush = false;
@@ -241,10 +245,11 @@ export async function claudeRemote(opts: {
         };
         pendingUsageWindows.clear();
         pendingUnbound = null;
-        const boundaryNow = Date.now();
-        for (const w of patch.windows) resetBoundary.note(w.resetsAt, boundaryNow);
-        if (patch.unbound) resetBoundary.note(patch.unbound.resetsAt, boundaryNow);
-        const signature = JSON.stringify([patch.windows, patch.unbound ?? null]);
+        for (const w of patch.windows) resetBoundary.note(w.resetsAt, flushNow);
+        if (patch.unbound) resetBoundary.note(patch.unbound.resetsAt, flushNow);
+        // replace:true must not dedup against an identical-looking event patch —
+        // swallowing it would leave stale persisted windows uncleared.
+        const signature = JSON.stringify([patch.windows, patch.unbound ?? null, patch.replace ?? false]);
         if (signature === lastUsageSignature && Date.now() - lastUsageEmittedAt < USAGE_REFRESH_INTERVAL_MS) return;
         lastUsageSignature = signature;
         lastUsageEmittedAt = Date.now();

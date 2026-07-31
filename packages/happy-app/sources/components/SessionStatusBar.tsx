@@ -17,6 +17,7 @@ import {
     getUsageLimitChips,
     getUsageLimitDisplayPercentage,
     getUsageLimitRows,
+    nextUsageLimitExpiryDelay,
     type UsageLimitsLike,
     type UsageLimitStatus,
 } from '@/utils/sessionStatusBar';
@@ -72,6 +73,15 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
             : theme.colors.status.connecting;
     const { width: windowWidth } = useWindowDimensions();
     const showRemaining = useSetting('usageLimitShowRemaining');
+    // Nothing else re-renders an idle session, so schedule the render at which
+    // the next window crosses its expiry and its chip must drop.
+    const [, expiryTick] = React.useReducer((n: number) => n + 1, 0);
+    React.useEffect(() => {
+        const delay = nextUsageLimitExpiryDelay(props.usageLimits, Date.now());
+        if (delay === null) return;
+        const timer = setTimeout(expiryTick, delay);
+        return () => clearTimeout(timer);
+    });
     const limitChips = getUsageLimitChips(props.usageLimits, windowWidth < LIMIT_CHIP_COLLAPSE_WIDTH, Date.now());
     const limitStatusColor = (status: UsageLimitStatus): string | undefined => {
         if (status === 'rejected') return theme.colors.warningCritical;

@@ -8,6 +8,7 @@ import {
     getUsageLimitDisplayPercentage,
     getUsageLimitRows,
     getUsageLimitStatus,
+    nextUsageLimitExpiryDelay,
     isContextWindowUsable,
     resolveStatusBarGitBranch,
 } from './sessionStatusBar';
@@ -211,6 +212,28 @@ describe('usage limit helpers', () => {
                 windows: [{ id: 'five_hour', utilization: 42, resetsAt: null }],
             };
             expect(getUsageLimitChips(noReset, false, now)).toHaveLength(1);
+        });
+
+        it('reports the delay until the next window expires, for the re-render timer', () => {
+            const limits = {
+                capturedAt: 1,
+                windows: [
+                    { id: 'seven_day', utilization: 96, resetsAt: now + 5000 },
+                    { id: 'five_hour', utilization: 8, resetsAt: now + 1000 },
+                ],
+            };
+            expect(nextUsageLimitExpiryDelay(limits, now)).toBe(1000 + GRACE);
+        });
+
+        it('reports null for the timer when no window is pending expiry', () => {
+            expect(nextUsageLimitExpiryDelay({
+                capturedAt: 1,
+                windows: [
+                    { id: 'seven_day', utilization: 96, resetsAt: now - GRACE },
+                    { id: 'plan', utilization: null, resetsAt: null },
+                ],
+            }, now)).toBeNull();
+            expect(nextUsageLimitExpiryDelay(undefined, now)).toBeNull();
         });
     });
 });
