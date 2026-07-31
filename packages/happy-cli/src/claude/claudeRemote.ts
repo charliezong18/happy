@@ -12,7 +12,7 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
-import { fromRateLimitEvent, windowsFromGetUsage, type UnboundRateLimit, type UsageLimitsPatch, type RateLimitEventInfo } from "./utils/usageLimits";
+import { fromRateLimitEvent, windowsFromGetUsage, ResetBoundaryTracker, type UnboundRateLimit, type UsageLimitsPatch, type RateLimitEventInfo } from "./utils/usageLimits";
 import type { UsageLimitWindow } from "@/api/types";
 
 export async function claudeRemote(opts: {
@@ -189,8 +189,15 @@ export async function claudeRemote(opts: {
     // Identical data still gets re-written occasionally so the snapshot's
     // capturedAt (the app's "as of" footer) doesn't misreport freshness.
     const USAGE_REFRESH_INTERVAL_MS = 5 * 60_000;
+    const resetBoundary = new ResetBoundaryTracker();
     const flushUsageLimits = async () => {
         if (!opts.onUsageLimits) return;
+        // A tracked window's reset moment passed: its persisted percentage
+        // describes a closed period, and allowed events will never refresh
+        // it — pull a fresh snapshot.
+        if (usageSeeded && resetBoundary.boundaryPassed(Date.now())) {
+            usageSeeded = false;
+        }
         let seededThisFlush = false;
         if (!usageSeeded) {
             usageSeeded = true;
@@ -234,6 +241,9 @@ export async function claudeRemote(opts: {
         };
         pendingUsageWindows.clear();
         pendingUnbound = null;
+        const boundaryNow = Date.now();
+        for (const w of patch.windows) resetBoundary.note(w.resetsAt, boundaryNow);
+        if (patch.unbound) resetBoundary.note(patch.unbound.resetsAt, boundaryNow);
         const signature = JSON.stringify([patch.windows, patch.unbound ?? null]);
         if (signature === lastUsageSignature && Date.now() - lastUsageEmittedAt < USAGE_REFRESH_INTERVAL_MS) return;
         lastUsageSignature = signature;

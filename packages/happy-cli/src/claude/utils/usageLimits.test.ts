@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fromRateLimitEvent, mergeUsageLimits, synthesizeStatus, windowsFromGetUsage } from './usageLimits';
+import { fromRateLimitEvent, mergeUsageLimits, ResetBoundaryTracker, synthesizeStatus, windowsFromGetUsage } from './usageLimits';
 
 describe('windowsFromGetUsage', () => {
     it('normalizes ISO resets_at to epoch ms and keeps 0-100 utilization as-is', () => {
@@ -183,5 +183,46 @@ describe('mergeUsageLimits review fixes', () => {
         });
         expect(second.windows.filter(w => w.id === 'plan')).toHaveLength(1);
         expect(second.windows[0].status).toBe('allowed_warning');
+    });
+});
+
+describe('ResetBoundaryTracker', () => {
+    // 2026-07-30 weekly reset: after a window rolls over, only `allowed`
+    // events arrive and they carry no utilization — the merge above keeps the
+    // pre-reset percentage forever ("keeps the last known utilization" is by
+    // design). The tracker tells the caller when to re-arm the get_usage seed
+    // so a fresh snapshot can replace the stale window.
+    it('stays quiet before any boundary is known', () => {
+        const t = new ResetBoundaryTracker();
+        expect(t.boundaryPassed(1000)).toBe(false);
+    });
+
+    it('ignores reset times that are invalid or already past', () => {
+        const t = new ResetBoundaryTracker();
+        t.note(500, 1000);
+        t.note(1000, 1000);
+        t.note(null, 1000);
+        t.note(undefined, 1000);
+        t.note(Number.NaN, 1000);
+        expect(t.boundaryPassed(2000)).toBe(false);
+    });
+
+    it('fires once per passed boundary and keeps later ones armed', () => {
+        const t = new ResetBoundaryTracker();
+        t.note(5000, 1000); // seven_day
+        t.note(3000, 1000); // five_hour
+        expect(t.boundaryPassed(2999)).toBe(false);
+        expect(t.boundaryPassed(3000)).toBe(true);
+        expect(t.boundaryPassed(3001)).toBe(false); // consumed
+        expect(t.boundaryPassed(5000)).toBe(true);  // later boundary still armed
+        expect(t.boundaryPassed(9999)).toBe(false);
+    });
+
+    it('dedupes repeated notes of the same boundary', () => {
+        const t = new ResetBoundaryTracker();
+        t.note(3000, 1000);
+        t.note(3000, 1500);
+        expect(t.boundaryPassed(3000)).toBe(true);
+        expect(t.boundaryPassed(3000)).toBe(false);
     });
 });

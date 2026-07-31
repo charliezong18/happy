@@ -72,7 +72,7 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
             : theme.colors.status.connecting;
     const { width: windowWidth } = useWindowDimensions();
     const showRemaining = useSetting('usageLimitShowRemaining');
-    const limitChips = getUsageLimitChips(props.usageLimits, windowWidth < LIMIT_CHIP_COLLAPSE_WIDTH);
+    const limitChips = getUsageLimitChips(props.usageLimits, windowWidth < LIMIT_CHIP_COLLAPSE_WIDTH, Date.now());
     const limitStatusColor = (status: UsageLimitStatus): string | undefined => {
         if (status === 'rejected') return theme.colors.warningCritical;
         if (status === 'allowed_warning') return theme.colors.warning;
@@ -235,7 +235,7 @@ function UsageLimitMenu(props: {
 }) {
     const styles = stylesheet;
     const { theme } = useUnistyles();
-    const rows = getUsageLimitRows(props.usageLimits);
+    const rows = getUsageLimitRows(props.usageLimits, Date.now());
     const knownLabels: Record<string, string> = {
         five_hour: t('components.sessionStatusBar.limitFiveHour'),
         seven_day: t('components.sessionStatusBar.limitSevenDay'),

@@ -116,18 +116,36 @@ export type UsageLimitChip = {
 };
 
 /**
+ * A window whose reset moment has passed describes the previous period: the
+ * CLI may not have re-measured yet (idle session, older CLI), so treating the
+ * stored percentage or status as current would keep e.g. a pre-reset
+ * "7d 96%" on screen indefinitely. Expired windows are hidden instead — the
+ * same silent degradation used when no data has arrived at all. The grace
+ * covers clock skew around the boundary.
+ */
+const EXPIRED_WINDOW_GRACE_MS = 60_000;
+
+export function isUsageLimitWindowExpired(window: UsageLimitWindowLike, now: number): boolean {
+    return typeof window.resetsAt === 'number'
+        && Number.isFinite(window.resetsAt)
+        && now >= window.resetsAt + EXPIRED_WINDOW_GRACE_MS;
+}
+
+/**
  * Chips normally show only the well-known windows (5h/7d/agy) with a numeric
  * utilization. If none exist, surface one critical unknown/unbound window so
  * a rejected or warning state can never disappear entirely. When `collapsed`
- * (narrow bar), only the window closest to its limit survives.
+ * (narrow bar), only the window closest to its limit survives. Windows whose
+ * reset moment has passed are dropped entirely.
  */
-export function getUsageLimitChips(limits: UsageLimitsLike, collapsed: boolean): UsageLimitChip[] {
+export function getUsageLimitChips(limits: UsageLimitsLike, collapsed: boolean, now: number): UsageLimitChip[] {
     if (!limits || !Array.isArray(limits.windows)) {
         return [];
     }
+    const windows = limits.windows.filter(w => !isUsageLimitWindowExpired(w, now));
     const chips: UsageLimitChip[] = [];
     for (const id of Object.keys(CHIP_WINDOW_LABELS)) {
-        const window = limits.windows.find(w => w.id === id);
+        const window = windows.find(w => w.id === id);
         if (!window) continue;
         const u = window.utilization;
         if (typeof u !== 'number' || !Number.isFinite(u)) continue;
@@ -139,7 +157,7 @@ export function getUsageLimitChips(limits: UsageLimitsLike, collapsed: boolean):
         });
     }
     if (chips.length === 0) {
-        const fallbackCandidates = limits.windows
+        const fallbackCandidates = windows
             .map(window => ({ window, status: getUsageLimitStatus(window) }));
         const fallback = fallbackCandidates.find(({ status }) => status === 'rejected')
             ?? fallbackCandidates.find(({ status }) => status === 'allowed_warning');
@@ -171,13 +189,13 @@ export type UsageLimitRow = {
     status: UsageLimitStatus;
 };
 
-/** All windows for the detail popover, well-known ids first. */
-export function getUsageLimitRows(limits: UsageLimitsLike): UsageLimitRow[] {
+/** All non-expired windows for the detail popover, well-known ids first. */
+export function getUsageLimitRows(limits: UsageLimitsLike, now: number): UsageLimitRow[] {
     if (!limits || !Array.isArray(limits.windows)) {
         return [];
     }
     const known = Object.keys(CHIP_WINDOW_LABELS);
-    const sorted = [...limits.windows].sort((a, b) => {
+    const sorted = limits.windows.filter(w => !isUsageLimitWindowExpired(w, now)).sort((a, b) => {
         const ai = known.indexOf(a.id);
         const bi = known.indexOf(b.id);
         return (ai < 0 ? known.length : ai) - (bi < 0 ? known.length : bi);

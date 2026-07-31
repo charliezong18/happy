@@ -85,14 +85,14 @@ describe('usage limit helpers', () => {
     };
 
     it('builds dual chips from the well-known windows only', () => {
-        const chips = getUsageLimitChips(limits, false);
+        const chips = getUsageLimitChips(limits, false, 0);
         expect(chips.map(c => c.id)).toEqual(['five_hour', 'seven_day']);
         expect(chips[0].shortLabel).toBe('5h');
         expect(chips[1].status).toBe('allowed_warning');
     });
 
     it('collapses to the window closest to its limit when narrow', () => {
-        const chips = getUsageLimitChips(limits, true);
+        const chips = getUsageLimitChips(limits, true, 0);
         expect(chips).toHaveLength(1);
         expect(chips[0].id).toBe('seven_day');
     });
@@ -106,17 +106,17 @@ describe('usage limit helpers', () => {
                 { id: 'agy:claude-sonnet-4-6', label: 'Claude Sonnet 4.6', utilization: 0, resetsAt: 200 },
             ],
         };
-        const chips = getUsageLimitChips(limits, false);
+        const chips = getUsageLimitChips(limits, false, 0);
         expect(chips.map(c => c.id)).toEqual(['agy']);
         expect(chips[0].shortLabel).toBe('agy');
         // The per-model detail still reaches the popover.
-        expect(getUsageLimitRows(limits).map(r => r.label)).toEqual(['agy', 'Gemini 3.1 Pro', 'Claude Sonnet 4.6']);
+        expect(getUsageLimitRows(limits, 0).map(r => r.label)).toEqual(['agy', 'Gemini 3.1 Pro', 'Claude Sonnet 4.6']);
     });
 
     it('hides chips for windows without numeric utilization and for absent data', () => {
-        expect(getUsageLimitChips({ capturedAt: 1, windows: [{ id: 'five_hour', utilization: null }] }, false)).toEqual([]);
-        expect(getUsageLimitChips(undefined, false)).toEqual([]);
-        expect(getUsageLimitChips({ capturedAt: 1, windows: 'garbage' as any }, false)).toEqual([]);
+        expect(getUsageLimitChips({ capturedAt: 1, windows: [{ id: 'five_hour', utilization: null }] }, false, 0)).toEqual([]);
+        expect(getUsageLimitChips(undefined, false, 0)).toEqual([]);
+        expect(getUsageLimitChips({ capturedAt: 1, windows: 'garbage' as any }, false, 0)).toEqual([]);
     });
 
     it('shows a critical fallback chip for an id-less rejected event', () => {
@@ -126,7 +126,7 @@ describe('usage limit helpers', () => {
                 { id: 'future_window', status: 'allowed_warning', utilization: 95 },
                 { id: 'plan', status: 'rejected', utilization: null },
             ],
-        }, false)).toEqual([{
+        }, false, 0)).toEqual([{
             id: 'plan',
             shortLabel: 'Plan',
             utilization: 100,
@@ -141,7 +141,7 @@ describe('usage limit helpers', () => {
                 { id: 'seven_day_opus', utilization: 10, resetsAt: null },
                 { id: 'five_hour', utilization: 42, resetsAt: 5 },
             ],
-        });
+        }, 0);
         expect(rows.map(r => r.id)).toEqual(['five_hour', 'seven_day_opus']);
         expect(rows[1].label).toBe('seven day opus');
     });
@@ -159,7 +159,7 @@ describe('usage limit helpers', () => {
         expect(getUsageLimitDisplayPercentage(100, true)).toBe(0);
         // The collapsed chip still picks the window closest to its limit,
         // which is the one with the least remaining.
-        expect(getUsageLimitChips(limits, true)[0].id).toBe('seven_day');
+        expect(getUsageLimitChips(limits, true, 0)[0].id).toBe('seven_day');
     });
 
     it('formats snapshot age compactly', () => {
@@ -167,5 +167,50 @@ describe('usage limit helpers', () => {
         expect(formatUsageLimitAge(0, 3 * 60_000)).toBe('3m');
         expect(formatUsageLimitAge(0, 2 * 3600_000)).toBe('2h');
         expect(formatUsageLimitAge(0, 3 * 86400_000)).toBe('3d');
+    });
+
+    describe('expired windows (stale after a plan reset)', () => {
+        // 2026-07-30: after the weekly reset, sessions kept showing the
+        // pre-reset "7d 96%" — allowed events carry no utilization, so the
+        // frozen window survives every merge. Display-side, a window whose
+        // reset moment has passed must not render as current.
+        const now = 1_000_000_000;
+        const GRACE = 60_000;
+
+        it('drops a window whose reset moment has passed from chips and rows', () => {
+            const stale = {
+                capturedAt: 1,
+                windows: [
+                    { id: 'seven_day', status: 'allowed_warning', utilization: 96, resetsAt: now - GRACE },
+                    { id: 'five_hour', status: 'allowed', utilization: 8, resetsAt: now + 1000 },
+                ],
+            };
+            expect(getUsageLimitChips(stale, false, now).map(c => c.id)).toEqual(['five_hour']);
+            expect(getUsageLimitRows(stale, now).map(r => r.id)).toEqual(['five_hour']);
+        });
+
+        it('keeps a window inside the clock-skew grace after its reset moment', () => {
+            const justReset = {
+                capturedAt: 1,
+                windows: [{ id: 'seven_day', utilization: 96, resetsAt: now - GRACE + 1 }],
+            };
+            expect(getUsageLimitChips(justReset, false, now)).toHaveLength(1);
+        });
+
+        it('does not resurrect an expired rejected window through the fallback chip', () => {
+            const expiredRejected = {
+                capturedAt: 1,
+                windows: [{ id: 'plan', status: 'rejected', utilization: null, resetsAt: now - GRACE }],
+            };
+            expect(getUsageLimitChips(expiredRejected, false, now)).toEqual([]);
+        });
+
+        it('never expires a window that carries no reset time', () => {
+            const noReset = {
+                capturedAt: 1,
+                windows: [{ id: 'five_hour', utilization: 42, resetsAt: null }],
+            };
+            expect(getUsageLimitChips(noReset, false, now)).toHaveLength(1);
+        });
     });
 });

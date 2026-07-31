@@ -165,3 +165,35 @@ export function mergeUsageLimits(current: UsageLimits | null | undefined, patch:
     }
     return { capturedAt: patch.capturedAt, windows };
 }
+
+/**
+ * Tracks upcoming reset boundaries among the windows a session has seen.
+ * Once one passes, the persisted utilization for that window describes a
+ * closed period and nothing in the event stream will ever correct it:
+ * `allowed` events carry no utilization, and a window that stopped binding
+ * stops emitting events entirely. The caller re-arms the get_usage seed
+ * instead, so the next flush pulls a fresh snapshot.
+ */
+export class ResetBoundaryTracker {
+    private boundaries: number[] = [];
+
+    /** Record a window's reset time (epoch ms); moments not in the future are ignored. */
+    note(resetsAt: number | null | undefined, now: number): void {
+        if (typeof resetsAt !== 'number' || !Number.isFinite(resetsAt) || resetsAt <= now) return;
+        if (!this.boundaries.includes(resetsAt)) {
+            this.boundaries.push(resetsAt);
+            this.boundaries.sort((a, b) => a - b);
+        }
+    }
+
+    /**
+     * True once the earliest recorded boundary has passed. Passed boundaries
+     * are consumed so each one triggers exactly one reseed; later boundaries
+     * stay armed.
+     */
+    boundaryPassed(now: number): boolean {
+        if (this.boundaries.length === 0 || now < this.boundaries[0]) return false;
+        this.boundaries = this.boundaries.filter(b => b > now);
+        return true;
+    }
+}
