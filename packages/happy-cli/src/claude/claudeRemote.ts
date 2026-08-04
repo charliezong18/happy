@@ -13,6 +13,7 @@ import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
 import { fromRateLimitEvent, windowsFromGetUsage, ResetBoundaryTracker, type UnboundRateLimit, type UsageLimitsPatch, type RateLimitEventInfo } from "./utils/usageLimits";
+import { fetchPlanUsageSnapshot } from "./utils/planUsageFallback";
 import type { UsageLimitWindow } from "@/api/types";
 
 export async function claudeRemote(opts: {
@@ -189,6 +190,13 @@ export async function claudeRemote(opts: {
     // Identical data still gets re-written occasionally so the snapshot's
     // capturedAt (the app's "as of" footer) doesn't misreport freshness.
     const USAGE_REFRESH_INTERVAL_MS = 5 * 60_000;
+    // One retry for the out-of-band pull. Without it a single blip costs the
+    // session its percentages until the next reset boundary re-arms the seed —
+    // up to five hours. Capped rather than unlimited because an unusable
+    // credential is the expected steady state, and retrying it every turn would
+    // put a subprocess in front of every result for the life of the session.
+    const FALLBACK_ATTEMPTS_PER_ARMING = 2;
+    let fallbackAttemptsLeft = FALLBACK_ATTEMPTS_PER_ARMING;
     const resetBoundary = new ResetBoundaryTracker();
     const flushUsageLimits = async () => {
         if (!opts.onUsageLimits) return;
@@ -201,8 +209,34 @@ export async function claudeRemote(opts: {
         // it — pull a fresh snapshot.
         if (usageSeeded && resetBoundary.boundaryPassed(flushNow)) {
             usageSeeded = false;
+            // A boundary is hours away from the last attempt; whatever made the
+            // out-of-band pull fail back then says nothing about now.
+            fallbackAttemptsLeft = FALLBACK_ATTEMPTS_PER_ARMING;
         }
         let seededThisFlush = false;
+        // Events are fresher than the seed for the same window, but allowed
+        // events carry no utilization — backfill the snapshot's percentage so
+        // it isn't dropped on the floor.
+        const applySeedSnapshot = (rateLimits: Record<string, unknown>) => {
+            const windows = windowsFromGetUsage(rateLimits);
+            for (const w of windows) {
+                const pending = pendingUsageWindows.get(w.id);
+                if (!pending) {
+                    pendingUsageWindows.set(w.id, w);
+                } else if (pending.utilization === null || pending.utilization === undefined) {
+                    pendingUsageWindows.set(w.id, {
+                        ...pending,
+                        utilization: w.utilization,
+                        resetsAt: pending.resetsAt ?? w.resetsAt,
+                    });
+                }
+            }
+            // A snapshot that yields no windows is not a snapshot — a 200 with an
+            // unexpected body would otherwise set `replace` and drop every
+            // persisted percentage on the floor, precisely when buffered events
+            // (which carry no utilization of their own) are the only thing left.
+            if (windows.length > 0) seededThisFlush = true;
+        };
         if (!usageSeeded) {
             usageSeeded = true;
             // typeof-gated: the method is experimental and absent in older SDKs.
@@ -211,26 +245,28 @@ export async function claudeRemote(opts: {
                 try {
                     const usage = await usageFn.call(response);
                     if (usage?.rate_limits_available && usage.rate_limits) {
-                        for (const w of windowsFromGetUsage(usage.rate_limits)) {
-                            // Events are fresher than the seed for the same
-                            // window, but allowed events carry no utilization —
-                            // backfill the snapshot's percentage so it isn't
-                            // dropped on the floor.
-                            const pending = pendingUsageWindows.get(w.id);
-                            if (!pending) {
-                                pendingUsageWindows.set(w.id, w);
-                            } else if (pending.utilization === null || pending.utilization === undefined) {
-                                pendingUsageWindows.set(w.id, {
-                                    ...pending,
-                                    utilization: w.utilization,
-                                    resetsAt: pending.resetsAt ?? w.resetsAt,
-                                });
-                            }
-                        }
-                        seededThisFlush = true;
+                        applySeedSnapshot(usage.rate_limits);
                     }
                 } catch (e) {
                     logger.debug('[claudeRemote] usage seed failed (ignored)', e);
+                }
+            }
+            // Gated on the token rather than on "the seed was empty": the
+            // fallback reports the *subscription's* quota, so it is only the
+            // right answer when this session bills against the subscription.
+            // An empty seed also happens under an API key / Bedrock / Vertex,
+            // where those numbers would be confidently wrong — leave the chips
+            // hidden there, as before.
+            if (!seededThisFlush && fallbackAttemptsLeft > 0
+                && process.env.CLAUDE_CODE_OAUTH_TOKEN && !process.env.ANTHROPIC_API_KEY) {
+                fallbackAttemptsLeft -= 1;
+                const snapshot = await fetchPlanUsageSnapshot(flushNow);
+                if (snapshot) {
+                    applySeedSnapshot(snapshot);
+                } else if (fallbackAttemptsLeft > 0) {
+                    // Re-arm so the next result retries instead of waiting out
+                    // the reset boundary. The budget above bounds this.
+                    usageSeeded = false;
                 }
             }
         }
