@@ -67,12 +67,12 @@ export function buildActiveSessionDisplayGroups(
         projectGroup.sessions.push(session);
     });
 
-    byMachine.forEach((machineGroup) => {
-        machineGroup.projects.forEach((projectGroup) => {
-            projectGroup.sessions.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-        });
-    });
-
+    // Deliberately no session-level sort here. Callers pass sessions already
+    // ordered by the user's sortSessionsByActivity setting (storage.ts), and the
+    // grouping above preserves that order. Re-sorting by createdAt discarded it:
+    // a session the user had been working in all morning sank below every session
+    // spawned after it, and resuming an old session put it back online carrying
+    // its original createdAt, pushing the live one further down each time.
     return Array.from(byMachine.values()).sort((a, b) =>
         a.machineName.localeCompare(b.machineName)
     );
