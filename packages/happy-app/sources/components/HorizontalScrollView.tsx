@@ -1,7 +1,24 @@
 import * as React from 'react';
 import { Platform, ScrollView, ScrollViewProps } from 'react-native';
 
-// Gesture-locked horizontal wheel scroll.
+// Gesture-locked horizontal wheel scroll for tables/code blocks inside the
+// inverted chat list.
+//
+// Two things conspire to kill horizontal trackpad swipes here, so this handler
+// both claims the event and applies the scroll itself:
+//
+// 1. The chat is an inverted FlatList, and react-native-web's inverted-wheel
+//    patch (react-native-web#995, still unfixed upstream — see #2418) attaches
+//    a wheel listener on the list's scroll node that calls preventDefault() on
+//    every event while only ever applying deltaY. That listener is on an
+//    ancestor in the bubble phase, so stopPropagation() here keeps the event
+//    away from it.
+// 2. Chromium does not natively scroll a nested horizontal scroller when an
+//    ancestor is transformed with scaleY(-1) — which is exactly how the
+//    inverted list is built. Verified with a standalone repro: identical
+//    markup scrolls natively without the transform and not at all with it,
+//    with no JS handlers involved. So stopPropagation() alone is not enough;
+//    nothing would move. We apply scrollLeft by hand.
 //
 // Trackpad swipes ramp up from 1-2px deltas, so deciding the axis solely on
 // the first event of a gesture misclassifies nearly every real horizontal
@@ -18,8 +35,10 @@ import { Platform, ScrollView, ScrollViewProps } from 'react-native';
 // patches/fix-rnw-inverted-wheel-horizontal.cjs) — that native path also
 // covers sub-2px slow swipes that the lock ignores.
 //
-// Shift + wheel always converts vertical to horizontal (mouse wheel users).
-// At scroll boundaries the event passes through so the page can scroll.
+// At a horizontal boundary the event also bubbles, so the list's
+// preventDefault() suppresses the browser's back/forward swipe gesture.
+//
+// Shift + wheel converts vertical wheel to horizontal scroll for mouse users.
 function useHorizontalWheelScroll() {
     const ref = React.useRef<ScrollView>(null);
     React.useEffect(() => {
@@ -35,8 +54,14 @@ function useHorizontalWheelScroll() {
             const maxScroll = el.scrollWidth - el.clientWidth;
             if (maxScroll <= 0) return;
 
+            // Room left to move in the direction the delta points.
+            const canScroll = (delta: number) => delta < 0
+                ? el.scrollLeft > 0
+                : delta > 0 && el.scrollLeft < maxScroll - 1;
+
             // Shift + wheel: convert vertical wheel to horizontal scroll.
             if (e.shiftKey && e.deltaY !== 0) {
+                if (!canScroll(e.deltaY)) return;
                 e.preventDefault();
                 e.stopPropagation();
                 el.scrollLeft += e.deltaY;

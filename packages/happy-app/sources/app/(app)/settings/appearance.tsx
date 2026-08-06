@@ -215,6 +215,7 @@ export default function AppearanceSettingsScreen() {
     const [avatarStyle, setAvatarStyle] = useSettingMutable('avatarStyle');
     const [showFlavorIcons, setShowFlavorIcons] = useSettingMutable('showFlavorIcons');
     const [unreadIndicatorPurple, setUnreadIndicatorPurple] = useSettingMutable('unreadIndicatorPurple');
+    const [compactToolCalls, setCompactToolCalls] = useSettingMutable('compactToolCalls');
     const [userMessageBubbleColor, setUserMessageBubbleColor] = useSettingMutable('userMessageBubbleColor');
     const [sessionStatusBarDisplay, setSessionStatusBarDisplay] = useSettingMutable('sessionStatusBarDisplay');
     const [usageLimitShowRemaining, setUsageLimitShowRemaining] = useSettingMutable('usageLimitShowRemaining');
@@ -392,6 +393,17 @@ export default function AppearanceSettingsScreen() {
             {/* Display Settings */}
             <ItemGroup title={t('settingsAppearance.display')} footer={t('settingsAppearance.displayDescription')}>
                 <Item
+                    title={t('settingsAppearance.compactToolCalls')}
+                    subtitle={t('settingsAppearance.compactToolCallsDescription')}
+                    icon={<Ionicons name="contract-outline" size={29} color="#5856D6" />}
+                    rightElement={
+                        <Switch
+                            value={compactToolCalls}
+                            onValueChange={setCompactToolCalls}
+                        />
+                    }
+                />
+                <Item
                     title={t('settingsAppearance.inlineToolCalls')}
                     subtitle={t('settingsAppearance.inlineToolCallsDescription')}
                     icon={<Ionicons name="code-slash-outline" size={29} color="#5856D6" />}
@@ -499,18 +511,6 @@ export default function AppearanceSettingsScreen() {
                     }
                 />
                 {/* <Item
-                    title="Compact Mode"
-                    subtitle="Reduce spacing between elements"
-                    icon={<Ionicons name="contract-outline" size={29} color="#5856D6" />}
-                    disabled
-                    rightElement={
-                        <Switch
-                            value={false}
-                            disabled
-                        />
-                    }
-                />
-                <Item
                     title="Show Avatars"
                     subtitle="Display user and assistant avatars"
                     icon={<Ionicons name="person-circle-outline" size={29} color="#5856D6" />}

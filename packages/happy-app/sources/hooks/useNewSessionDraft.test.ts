@@ -10,7 +10,7 @@ type Draft = {
     input: string;
     selectedMachineId: string | null;
     selectedPath: string | null;
-    agentType: 'claude' | 'codex' | 'gemini' | 'openclaw' | 'agy';
+    agentType: 'claude' | 'codex' | 'gemini' | 'openclaw' | 'agy' | 'rig';
     agentModes: Partial<Record<Draft['agentType'], AgentModes>>;
     sessionType: 'simple' | 'worktree';
     worktreeKey: string | null;

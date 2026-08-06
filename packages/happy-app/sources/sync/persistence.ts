@@ -12,10 +12,10 @@ const VOICE_SOFT_PAYWALL_SHOWN_KEY = 'voice-soft-paywall-shown';
 const VOICE_ONBOARDING_PROMPT_LOAD_COUNT_KEY = 'voice-onboarding-prompt-load-count';
 const VOICE_MESSAGE_COUNT_KEY = 'voice-message-count';
 
-export type NewSessionAgentType = 'claude' | 'codex' | 'gemini' | 'openclaw' | 'agy';
+export type NewSessionAgentType = 'claude' | 'codex' | 'gemini' | 'openclaw' | 'agy' | 'rig';
 export type NewSessionSessionType = 'simple' | 'worktree';
 
-const NEW_SESSION_AGENT_TYPES: NewSessionAgentType[] = ['claude', 'codex', 'gemini', 'openclaw', 'agy'];
+const NEW_SESSION_AGENT_TYPES: NewSessionAgentType[] = ['claude', 'codex', 'gemini', 'openclaw', 'agy', 'rig'];
 
 export interface NewSessionAgentModes {
     permissionMode: PermissionModeKey | null;
@@ -165,7 +165,7 @@ export function parseNewSessionDraft(parsed: unknown): NewSessionDraft | null {
     const input = typeof record.input === 'string' ? record.input : '';
     const selectedMachineId = typeof record.selectedMachineId === 'string' ? record.selectedMachineId : null;
     const selectedPath = typeof record.selectedPath === 'string' ? record.selectedPath : null;
-    const agentType: NewSessionAgentType = record.agentType === 'codex' || record.agentType === 'gemini' || record.agentType === 'openclaw' || record.agentType === 'agy'
+    const agentType: NewSessionAgentType = record.agentType === 'codex' || record.agentType === 'gemini' || record.agentType === 'openclaw' || record.agentType === 'agy' || record.agentType === 'rig'
         ? record.agentType
         : 'claude';
     const agentModes: NewSessionDraft['agentModes'] = {};
