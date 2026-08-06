@@ -56,6 +56,22 @@ describe('session display order', () => {
             .toEqual(['alpha-first-project', 'alpha-new', 'alpha-old']);
     });
 
+    it('keeps the caller-supplied order inside a project instead of re-sorting by creation time', () => {
+        // Callers hand us sessions already ordered by the user's sortSessionsByActivity
+        // choice. Re-sorting here by createdAt threw that away, so a session the user
+        // had been talking to all morning sank below every session spawned after it —
+        // including old ones brought back online by resume, which keep their old
+        // createdAt but re-enter the list ahead of it.
+        const groups = buildActiveSessionDisplayGroups([
+            session('talked-to-this-morning', 'machine-a', '/project', 10),
+            session('spawned-later-never-used', 'machine-a', '/project', 20),
+        ], machines, 'Unknown');
+
+        expect(Array.from(groups[0].projects.values())
+            .flatMap((project) => project.sessions.map((item) => item.id)))
+            .toEqual(['talked-to-this-morning', 'spawned-later-never-used']);
+    });
+
     it('numbers the first nine session rows from top to bottom', () => {
         const activeSessions = [
             session('zulu', 'machine-z', '/project'),
