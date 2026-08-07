@@ -1,6 +1,6 @@
 import { MarkdownSpan, parseMarkdown } from './parseMarkdown';
 import * as React from 'react';
-import { Image, Pressable, View, Platform } from 'react-native';
+import { Image, Pressable, TextInput, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { HorizontalScrollView } from '../HorizontalScrollView';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -233,20 +233,18 @@ function RenderOptionsBlock(props: {
     selectable: boolean,
     onOptionPress?: (option: Option) => void
 }) {
-    // Multi-select mode is per-block local state only: null == off, a Set of
-    // selected indices == on. Not persisted, not synced, dies on unmount.
-    // Single tap keeps sending immediately; long-press enters selection mode
-    // so the user can batch several options into one "run in sequence" message.
-    const [selected, setSelected] = React.useState<Set<number> | null>(null);
-    const inSelectionMode = selected !== null;
-
-    const enterSelection = React.useCallback((index: number) => {
-        setSelected(new Set([index]));
-    }, []);
+    // Per-block local state only, not persisted/synced, dies on unmount.
+    // Tapping a chip toggles its selection (never sends). Once there is a
+    // selection or typed text, an action bar (a "type something" box + Submit +
+    // Cancel) appears below. Submit composes one message from the selected
+    // options plus the typed supplement and hands it to the parent callback.
+    const [selected, setSelected] = React.useState<Set<number>>(new Set());
+    const [note, setNote] = React.useState('');
+    const active = selected.size > 0 || note.length > 0;
 
     const toggle = React.useCallback((index: number) => {
         setSelected((prev) => {
-            const next = new Set(prev ?? []);
+            const next = new Set(prev);
             if (next.has(index)) {
                 next.delete(index);
             } else {
@@ -257,25 +255,43 @@ function RenderOptionsBlock(props: {
     }, []);
 
     const cancel = React.useCallback(() => {
-        setSelected(null);
+        setSelected(new Set());
+        setNote('');
     }, []);
 
-    const runInSequence = React.useCallback(() => {
-        if (!props.onOptionPress || !selected || selected.size === 0) {
+    const submit = React.useCallback(() => {
+        if (!props.onOptionPress) {
             return;
         }
-        // Compose one message from the selected options in display order.
+        const trimmedNote = note.trim();
+        if (selected.size === 0 && trimmedNote.length === 0) {
+            return;
+        }
+        // Compose one message from the selected options (display order) plus note.
         const chosen = props.items.filter((_, index) => selected.has(index));
-        const combined = ['请依次完成以下事项：', ...chosen.map((text, i) => `${i + 1}. ${text}`)].join('\n');
-        props.onOptionPress({ title: combined });
-        setSelected(null);
-    }, [props.onOptionPress, props.items, selected]);
+        let composed: string;
+        if (chosen.length === 0) {
+            composed = trimmedNote;
+        } else if (chosen.length === 1) {
+            composed = trimmedNote.length > 0 ? `${chosen[0]}\n${trimmedNote}` : chosen[0];
+        } else {
+            composed = ['请依次完成以下事项：', ...chosen.map((text, i) => `${i + 1}. ${text}`)].join('\n');
+            if (trimmedNote.length > 0) {
+                composed += `\n${trimmedNote}`;
+            }
+        }
+        props.onOptionPress({ title: composed });
+        setSelected(new Set());
+        setNote('');
+    }, [props.onOptionPress, props.items, selected, note]);
+
+    const submitDisabled = selected.size === 0 && note.trim().length === 0;
 
     return (
         <View style={[style.optionsContainer, props.first && style.first, props.last && style.last]}>
             {props.items.map((item, index) => {
                 if (props.onOptionPress) {
-                    const isSelected = selected?.has(index) ?? false;
+                    const isSelected = selected.has(index);
                     return (
                         <Pressable
                             key={index}
@@ -285,35 +301,18 @@ function RenderOptionsBlock(props: {
                                 isSelected && style.optionItemSelected,
                                 pressed && style.optionItemPressed
                             ]}
-                            onPress={() => {
-                                if (inSelectionMode) {
-                                    toggle(index);
-                                } else {
-                                    props.onOptionPress?.({ title: item });
-                                }
-                            }}
-                            onLongPress={() => enterSelection(index)}
-                            // Web: mouse-hold fires onLongPress, but the browser also pops
-                            // its native context menu on right-click / long-press. Suppress it
-                            // and enter selection mode, mirroring SessionsList's precedent.
-                            {...(Platform.OS === 'web' ? ({
-                                onContextMenu: (event: any) => {
-                                    event.preventDefault?.();
-                                    event.stopPropagation?.();
-                                    enterSelection(index);
-                                },
-                            } as any) : {})}
+                            onPress={() => toggle(index)}
                         >
                             <View style={style.optionRow}>
-                                {inSelectionMode ? (
+                                {isSelected ? (
                                     <Ionicons
-                                        name={isSelected ? 'checkmark-circle' : 'ellipse-outline'}
+                                        name="checkmark-circle"
                                         size={20}
-                                        color={isSelected ? style.optionCheckSelected.color : style.optionCheck.color}
+                                        color={style.optionCheckSelected.color}
                                         style={style.optionCheckIcon}
                                     />
                                 ) : null}
-                                <Text selectable={props.selectable && !inSelectionMode} style={style.optionText}>{item}</Text>
+                                <Text selectable={props.selectable && selected.size === 0} style={style.optionText}>{item}</Text>
                             </View>
                         </Pressable>
                     );
@@ -325,30 +324,51 @@ function RenderOptionsBlock(props: {
                     );
                 }
             })}
-            {inSelectionMode ? (
-                <View style={style.optionsActionsRow}>
-                    <Pressable
-                        style={({ pressed }) => [
-                            style.optionsActionButton,
-                            style.optionsActionRun,
-                            (selected?.size ?? 0) === 0 && style.optionsActionDisabled,
-                            pressed && style.optionItemPressed,
-                        ]}
-                        disabled={(selected?.size ?? 0) === 0}
-                        onPress={runInSequence}
-                    >
-                        <Text style={style.optionsActionRunText}>Run in sequence</Text>
-                    </Pressable>
-                    <Pressable
-                        style={({ pressed }) => [
-                            style.optionsActionButton,
-                            style.optionsActionCancel,
-                            pressed && style.optionItemPressed,
-                        ]}
-                        onPress={cancel}
-                    >
-                        <Text style={style.optionsActionCancelText}>{t('common.cancel')}</Text>
-                    </Pressable>
+            {active && props.onOptionPress ? (
+                <View style={style.optionsActionsColumn}>
+                    <TextInput
+                        style={style.optionsNoteInput}
+                        value={note}
+                        onChangeText={setNote}
+                        placeholder="Type something…"
+                        placeholderTextColor={style.optionsNotePlaceholder.color}
+                        multiline
+                        // Web only: Enter (no Shift) submits when enabled; Shift+Enter inserts a newline.
+                        {...(Platform.OS === 'web' ? ({
+                            onKeyPress: (event: any) => {
+                                if (event.nativeEvent?.key === 'Enter' && !event.nativeEvent?.shiftKey) {
+                                    event.preventDefault?.();
+                                    if (!submitDisabled) {
+                                        submit();
+                                    }
+                                }
+                            },
+                        } as any) : {})}
+                    />
+                    <View style={style.optionsActionsRow}>
+                        <Pressable
+                            style={({ pressed }) => [
+                                style.optionsActionButton,
+                                style.optionsActionRun,
+                                submitDisabled && style.optionsActionDisabled,
+                                pressed && style.optionItemPressed,
+                            ]}
+                            disabled={submitDisabled}
+                            onPress={submit}
+                        >
+                            <Text style={style.optionsActionRunText}>Submit</Text>
+                        </Pressable>
+                        <Pressable
+                            style={({ pressed }) => [
+                                style.optionsActionButton,
+                                style.optionsActionCancel,
+                                pressed && style.optionItemPressed,
+                            ]}
+                            onPress={cancel}
+                        >
+                            <Text style={style.optionsActionCancelText}>{t('common.cancel')}</Text>
+                        </Pressable>
+                    </View>
                 </View>
             ) : null}
         </View>
@@ -721,16 +741,33 @@ const style = StyleSheet.create((theme) => ({
     optionCheckIcon: {
         marginLeft: -2,
     },
-    optionCheck: {
-        color: theme.colors.textSecondary,
-    },
     optionCheckSelected: {
         color: theme.colors.textLink,
+    },
+    optionsActionsColumn: {
+        flexDirection: 'column',
+        gap: 8,
+        marginTop: 4,
+    },
+    optionsNoteInput: {
+        ...Typography.default(),
+        fontSize: 16,
+        lineHeight: 24,
+        maxHeight: 72,
+        color: theme.colors.text,
+        backgroundColor: Platform.select({ web: theme.colors.surfaceHighest, default: theme.colors.surface }),
+        borderRadius: Platform.select({ web: 8, default: 18 }),
+        paddingHorizontal: 16,
+        paddingVertical: Platform.select({ web: 12, default: 14 }),
+        borderWidth: Platform.select({ web: 1, default: StyleSheet.hairlineWidth }),
+        borderColor: theme.colors.divider,
+    },
+    optionsNotePlaceholder: {
+        color: theme.colors.textSecondary,
     },
     optionsActionsRow: {
         flexDirection: 'row',
         gap: 8,
-        marginTop: 4,
     },
     optionsActionButton: {
         borderRadius: Platform.select({ web: 8, default: 18 }),
