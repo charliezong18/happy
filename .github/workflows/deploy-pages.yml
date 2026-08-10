@@ -37,7 +37,7 @@ jobs:
         # Remove the env var to fall back to the hosted relay.
         run: |
           EXPO_WEB_BASE_URL=/happy \
-          EXPO_PUBLIC_HAPPY_SERVER_URL=https://zsmx.tail496762.ts.net:8443 \
+          EXPO_PUBLIC_HAPPY_SERVER_URL=https://zsmx.tail496762.ts.net \
           npx expo export --platform web
       - name: Add Pages helpers (.nojekyll + SPA 404 fallback)
         run: |
