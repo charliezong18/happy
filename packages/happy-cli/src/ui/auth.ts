@@ -17,8 +17,13 @@ import { logger } from './logger';
 export async function doAuth(): Promise<Credentials | null> {
     console.clear();
 
-    // Show authentication method selector
-    const authMethod = await selectAuthenticationMethod();
+    // HAPPY_AUTH_METHOD=web|mobile skips the interactive selector — needed for
+    // headless runs where Ink's raw-mode input is unavailable (e.g. driven by
+    // an agent or CI; the selector renders but never receives keystrokes).
+    const envMethod = process.env.HAPPY_AUTH_METHOD;
+    const authMethod = (envMethod === 'web' || envMethod === 'mobile')
+        ? envMethod
+        : await selectAuthenticationMethod();
     if (!authMethod) {
         console.log('\nAuthentication cancelled.\n');
         process.exit(0);
