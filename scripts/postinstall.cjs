@@ -8,7 +8,6 @@ require('../patches/force-preact-cjs.cjs');
 require('../patches/fix-pierre-trees-preact-hooks.cjs');
 require('../patches/fix-react-native-audio-api-size-t.cjs');
 require('../patches/fix-rnw-inverted-wheel-horizontal.cjs');
-require('../patches/fix-image-picker-webkit-click.cjs');
 
 if (process.env.SKIP_HAPPY_WIRE_BUILD === '1') {
   console.log('[postinstall] SKIP_HAPPY_WIRE_BUILD=1, skipping @slopus/happy-wire build');
