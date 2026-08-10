@@ -33,7 +33,7 @@ import { KeyboardAvoidingView, KeyboardStickyView } from 'react-native-keyboard-
 import Constants from 'expo-constants';
 import { useHeaderHeight } from '@/utils/responsive';
 import { t } from '@/text';
-import { useAllMachines, useLocalSetting, useLocalSettingMutable, useSessions, useSetting, storage } from '@/sync/storage';
+import { useAllMachines, useLocalSetting, useSessions, useSetting, storage } from '@/sync/storage';
 import type { NewSessionAgentType } from '@/sync/persistence';
 import { sync } from '@/sync/sync';
 import { isMachineOnline } from '@/utils/machineUtils';
@@ -61,7 +61,7 @@ import {
 } from '@/components/modelModeOptions';
 import { isRunningOnMac } from '@/utils/platform';
 import { getNewSessionSidebarLayout } from '@/utils/newSessionSidebarLayout';
-import { getAgentPickerItems, getModePickerItems, orderProjectPaths, withRecentPath } from '@/utils/newSessionPickerItems';
+import { getAgentPickerItems, getModePickerItems } from '@/utils/newSessionPickerItems';
 import {
     NEW_SESSION_PICKER_LAYERS,
     cancelPendingPickerOpenState,
@@ -731,7 +731,6 @@ function NewSessionScreen() {
     const agentDefaultOverrides = useSetting('agentDefaultOverrides');
     const fileDiffsSidebarEnabled = useSetting('fileDiffsSidebar');
     const zenMode = useLocalSetting('zenMode');
-    const [recentPathsByMachine, setRecentPathsByMachine] = useLocalSettingMutable('recentPathsByMachine');
     const { width: windowWidth, height: windowHeight } = useWindowDimensions();
 
     // Persisted draft state (survives navigation).
@@ -862,29 +861,23 @@ function NewSessionScreen() {
         }));
     }, [allMachines]);
 
-    // Build path items for the selected machine. Recents lead the list, so the
-    // effect below auto-selects the last used path instead of whatever sorts
-    // first (which was always the home directory).
+    // Build path items from session history for selected machine
     const pathItems = React.useMemo<PickerItem[]>(() => {
-        if (!selectedMachineId) return [];
-        const homeDir = selectedMachine?.metadata?.homeDir;
-        const historyPaths: string[] = [];
-        for (const s of sessions ?? []) {
+        if (!selectedMachineId || !sessions) return [];
+        const paths = new Set<string>();
+        for (const s of sessions) {
             if (typeof s === 'string') continue;
             const session = s as Session;
             if (session.metadata?.machineId === selectedMachineId && session.metadata?.path) {
-                historyPaths.push(session.metadata.path);
+                paths.add(session.metadata.path);
             }
         }
-        return orderProjectPaths(
-            recentPathsByMachine[selectedMachineId],
-            historyPaths,
-            (p) => normalizePathForComparison(p, homeDir),
-        ).map(p => ({
+        const homeDir = selectedMachine?.metadata?.homeDir;
+        return Array.from(paths).sort().map(p => ({
             key: p,
             label: formatPathRelativeToHome(p, homeDir),
         }));
-    }, [selectedMachineId, sessions, selectedMachine, recentPathsByMachine]);
+    }, [selectedMachineId, sessions, selectedMachine]);
 
     // Auto-select first path when machine changes
     React.useEffect(() => {
@@ -1387,17 +1380,6 @@ function NewSessionScreen() {
                     completeSpawnRequest();
                     await sync.refreshSessions();
 
-                    // Remember where this went, not where a worktree put it —
-                    // absolutePath is the project the user actually picked.
-                    setRecentPathsByMachine({
-                        ...recentPathsByMachine,
-                        [selectedMachineId]: withRecentPath(
-                            recentPathsByMachine[selectedMachineId],
-                            absolutePath,
-                            (p) => normalizePathForComparison(p, selectedMachine.metadata?.homeDir),
-                        ),
-                    });
-
                     // Store only per-session overrides. Matching the effective
                     // default stays null so future code default changes apply.
                     const permissionOverride = permissionKey === effectiveAgentDefaults.permissionMode
@@ -1472,7 +1454,7 @@ function NewSessionScreen() {
         } finally {
             if (isMountedRef.current) setIsSpawning(false);
         }
-    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, router, navigateToSession, currentPermission?.key, currentModelKey, currentEffort?.key, effectiveAgentDefaults.permissionMode, effectiveAgentDefaults.modelMode, effectiveAgentDefaults.effortLevel, worktreeKey, rigCreation, supportsWorktree, expImageUpload, clearImages, recentPathsByMachine, setRecentPathsByMachine]);
+    }, [selectedMachineId, selectedMachine, selectedPath, selectedAgent, router, navigateToSession, currentPermission?.key, currentModelKey, currentEffort?.key, effectiveAgentDefaults.permissionMode, effectiveAgentDefaults.modelMode, effectiveAgentDefaults.effortLevel, worktreeKey, rigCreation, supportsWorktree, expImageUpload, clearImages]);
 
     const canSend = selectedMachineId && selectedMachine && isMachineOnline(selectedMachine) && !isSpawning;
     React.useEffect(() => {
