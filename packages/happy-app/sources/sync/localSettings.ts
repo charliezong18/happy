@@ -23,6 +23,10 @@ export const LocalSettingsSchema = z.object({
     acknowledgedCliVersions: z.record(z.string(), z.string()).describe('Acknowledged CLI versions per machine'),
     // Collapsed Rig projects in the session list - keyed by project id
     collapsedProjects: z.record(z.string(), z.boolean()).describe('Collapsed state per sidebar project'),
+    // Project directories started from this device, newest first, keyed by
+    // machineId. The new-session picker otherwise only knows the paths it can
+    // see in synced session history, which is empty on a fresh server.
+    recentPathsByMachine: z.record(z.string(), z.array(z.string())).describe('Recently used project paths per machine, most recent first'),
 });
 
 //
@@ -52,6 +56,7 @@ export const localSettingsDefaults: LocalSettings = {
     sidebarPanelActive: null,
     acknowledgedCliVersions: {},
     collapsedProjects: {},
+    recentPathsByMachine: {},
 };
 Object.freeze(localSettingsDefaults);
 
