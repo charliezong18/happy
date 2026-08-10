@@ -113,10 +113,14 @@ export async function handleServerCommand(args: string[]): Promise<void> {
         HOST: opts.host,
     };
     if (staticDir) env.HAPPY_STATIC_DIR = staticDir;
-    env.HAPPY_INJECT_HTML_CONFIG = JSON.stringify({
-        serverUrl,
-        disableAnalytics: true,
-    });
+    // Respect an externally-provided config (e.g. a public URL when fronted by
+    // tailscale funnel); otherwise inject the local bind URL.
+    if (!process.env.HAPPY_INJECT_HTML_CONFIG) {
+        env.HAPPY_INJECT_HTML_CONFIG = JSON.stringify({
+            serverUrl,
+            disableAnalytics: true,
+        });
+    }
 
     // The bundled bun binary can't embed Prisma's native query engine. Source/dev
     // mode resolves the engine from node_modules normally, but bundled mode needs
