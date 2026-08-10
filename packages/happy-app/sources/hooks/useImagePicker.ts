@@ -95,9 +95,6 @@ export function useImagePicker(): UseImagePickerResult {
     }, []);
 
     const pickImages = useCallback(async () => {
-        const hasPermission = await requestPermission();
-        if (!hasPermission) return;
-
         const remaining = MAX_IMAGES_PER_MESSAGE - selectedCountRef.current;
         if (remaining <= 0) {
             Modal.alert(
@@ -108,13 +105,24 @@ export function useImagePicker(): UseImagePickerResult {
             return;
         }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
+        const options: ImagePicker.ImagePickerOptions = {
             mediaTypes: ['images'], // expo-image-picker ~55: MediaTypeOptions deprecated
             allowsMultipleSelection: true,
             selectionLimit: remaining,
             quality: 1, // request full-resolution source; iOS upload is normalized below
             exif: false,
-        });
+        };
+
+        // Order matters on web: WebKit only opens the file dialog while the
+        // press that triggered it still counts as the active user gesture, and
+        // a single await is enough to lose that on iOS. So launch first and
+        // never await ahead of it — permissions are a no-op on web anyway.
+        const isWeb = Platform.OS === 'web';
+        const pending = isWeb ? ImagePicker.launchImageLibraryAsync(options) : null;
+
+        if (!isWeb && !(await requestPermission())) return;
+
+        const result = await (pending ?? ImagePicker.launchImageLibraryAsync(options));
 
         if (result.canceled || !result.assets.length) return;
 
