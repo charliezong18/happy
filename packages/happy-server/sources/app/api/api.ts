@@ -68,14 +68,35 @@ export async function startApi(opts: StartApiOptions = {}) {
             reply.send('Welcome to Happy Server!');
         });
     } else {
+        // Browsers always put text/html in Accept; anything else at `/` is a
+        // probe and gets the banner (hosted serves it unconditionally there).
+        // no-store keeps stale HTML from shadowing the banner in client caches.
         app.addHook('onRequest', async (request, reply) => {
             const url = request.raw.url || '';
             if (request.method !== 'GET' || (url !== '/' && !url.startsWith('/?'))) return;
             const accept = request.headers.accept || '';
-            if (accept && !accept.includes('text/html') && !accept.includes('*/*')) {
+            request.log.info(`root probe accept="${accept}" ua="${request.headers['user-agent'] || ''}"`);
+            if (!accept.includes('text/html')) {
+                reply.header('cache-control', 'no-store');
                 reply.header('content-type', 'text/plain; charset=utf-8');
                 return reply.send('Welcome to Happy Server!');
             }
+        });
+        // The app's logout awaits DELETE /v1/push-tokens/<token> inside an
+        // infinite-retry backoff, so a stale-token 401 wedges logout forever.
+        // Deleting a registration you don't own is a no-op — call it success.
+        app.addHook('onSend', async (request, reply, payload) => {
+            if (request.method === 'DELETE'
+                && (request.raw.url || '').startsWith('/v1/push-tokens/')
+                && reply.statusCode === 401) {
+                request.log.info('push-token delete with bad auth — answering success to unwedge logout');
+                reply.code(200);
+                reply.header('content-type', 'application/json; charset=utf-8');
+                const body = JSON.stringify({ success: true });
+                reply.header('content-length', Buffer.byteLength(body));
+                return body;
+            }
+            return payload;
         });
     }
 
@@ -163,6 +184,7 @@ export async function startApi(opts: StartApiOptions = {}) {
                 }
                 const injected = html.replace(/<head[^>]*>/i, (m) => `${m}\n${injectScript}`);
                 reply.header('content-length', Buffer.byteLength(injected));
+                reply.header('cache-control', 'no-store');
                 return injected;
             });
         }
