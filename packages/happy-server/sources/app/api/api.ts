@@ -60,10 +60,22 @@ export async function startApi(opts: StartApiOptions = {}) {
     );
 
     // Root handler — when not serving a static webapp, return a banner.
-    // When serving a static webapp, @fastify/static handles `/` via its index.
+    // When serving a static webapp, @fastify/static handles `/` via its index,
+    // except for non-browser probes (Accept without text/html or */*): the
+    // mobile app's custom-server validation requires the banner at `/`.
     if (!opts.staticDir) {
         app.get('/', function (request, reply) {
             reply.send('Welcome to Happy Server!');
+        });
+    } else {
+        app.addHook('onRequest', async (request, reply) => {
+            const url = request.raw.url || '';
+            if (request.method !== 'GET' || (url !== '/' && !url.startsWith('/?'))) return;
+            const accept = request.headers.accept || '';
+            if (accept && !accept.includes('text/html') && !accept.includes('*/*')) {
+                reply.header('content-type', 'text/plain; charset=utf-8');
+                return reply.send('Welcome to Happy Server!');
+            }
         });
     }
 
