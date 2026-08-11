@@ -15,9 +15,19 @@ html.happy-app-zoomed {
     overflow: hidden;
 }
 
+/* Despite the name, this class is on in every plain browser (useTauriZoom adds
+   it with zoom pinned to 1 and removes it under Tauri, which zooms natively),
+   so these rules are what actually size the mobile web app. */
 html.happy-app-zoomed body {
     width: calc(100vw / var(--happy-app-zoom));
     height: calc(100vh / var(--happy-app-zoom));
+    /* 100vh on iOS WebKit is the toolbar-retracted height, so the bottom of the
+       page — the composer — sits under the browser's toolbar, and the keyboard
+       never resizes the layout viewport at all. dvh tracks the toolbar;
+       --happy-viewport-height, published from visualViewport by
+       polyfills/mobileViewport.ts on touch devices, tracks the keyboard. The vh
+       line above stays as the fallback for engines without dvh. */
+    height: calc(var(--happy-viewport-height, 100dvh) / var(--happy-app-zoom));
     transform-origin: top left;
 }
 
