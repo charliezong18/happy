@@ -15,9 +15,19 @@ html.happy-app-zoomed {
     overflow: hidden;
 }
 
+/* Despite the name, this class is on in every plain browser (useTauriZoom adds
+   it with zoom pinned to 1 and removes it under Tauri, which zooms natively),
+   so these rules are what actually size the mobile web app. */
 html.happy-app-zoomed body {
     width: calc(100vw / var(--happy-app-zoom));
     height: calc(100vh / var(--happy-app-zoom));
+    /* 100vh is the large viewport — the height iOS reports with the browser
+       toolbar retracted — so the bottom of the app (composer, tab bar) is drawn
+       underneath Safari's/Chrome's toolbar and cannot be tapped. svh is the
+       small viewport: the height with the toolbar showing. It is a constant for
+       a given device and orientation, so unlike dvh it never resizes mid-scroll.
+       The vh line above stays as the fallback for engines without svh. */
+    height: calc(100svh / var(--happy-app-zoom));
     transform-origin: top left;
 }
 
