@@ -218,7 +218,7 @@ export async function startApi(opts: StartApiOptions = {}) {
             }
             const html = fs.readFileSync(indexPath, 'utf8');
             const injected = injectScript ? html.replace(/<head[^>]*>/i, (m) => `${m}\n${injectScript}`) : html;
-            reply.type('text/html').send(injected);
+            return reply.type('text/html').send(injected);
         });
     }
 

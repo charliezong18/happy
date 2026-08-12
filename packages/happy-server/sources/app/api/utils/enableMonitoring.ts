@@ -34,18 +34,22 @@ export function enableMonitoring(app: Fastify) {
         });
     });
 
+    // Async handlers must return the reply after send(), otherwise Fastify
+    // re-enters the send path when the handler resolves and a second onSend
+    // chain writes headers on a finished response (ERR_HTTP_HEADERS_SENT,
+    // uncaught → process exit).
     app.get('/health', async (request, reply) => {
         try {
             // Test database connectivity
             await db.$queryRaw`SELECT 1`;
-            reply.send({
+            return reply.send({
                 status: 'ok',
                 timestamp: new Date().toISOString(),
                 service: 'happy-server'
             });
         } catch (error) {
             debug({ module: 'health' }, `health:database-check-failed error=${error}`);
-            reply.code(503).send({
+            return reply.code(503).send({
                 status: 'error',
                 timestamp: new Date().toISOString(),
                 service: 'happy-server',
