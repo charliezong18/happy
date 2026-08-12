@@ -98,21 +98,6 @@ export async function startApi(opts: StartApiOptions = {}) {
             }
             return payload;
         });
-        // TEMPORARY debug sink for the mobile app's Remote Log Server feature
-        // (dev screen → Remote Log Server → https://<host>/app-logs). Remove
-        // once the mobile boot loop is diagnosed.
-        app.post('/app-logs/logs', async (request) => {
-            const { appendFile, mkdir } = await import('node:fs/promises');
-            const { join } = await import('node:path');
-            const { homedir } = await import('node:os');
-            const b = (typeof request.body === 'object' && request.body !== null
-                ? request.body : {}) as Record<string, unknown>;
-            const line = `[${b.timestamp ?? ''}] [${String(b.level ?? 'info').toUpperCase()}] [${b.source ?? '?'}/${b.platform ?? '?'}] ${b.message ?? ''}\n`;
-            const dir = join(homedir(), '.happy', 'app-logs');
-            await mkdir(dir, { recursive: true });
-            await appendFile(join(dir, 'remote-app.log'), line);
-            return { ok: true };
-        });
     }
 
     // Create typed provider
