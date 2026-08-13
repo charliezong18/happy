@@ -1182,4 +1182,37 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(mockAxiosGet).not.toHaveBeenCalled();
         expect(mockAxiosPost).not.toHaveBeenCalled();
     });
+
+    it('sends the Bearer token when the download URL origin differs from configuration.serverUrl', async () => {
+        const session = makeSession();
+        const client = new ApiSessionClient('fake-token', session);
+
+        // Self-hosted topology: the server advertises a public funnel origin
+        // (PUBLIC_URL) while this CLI talks to it over localhost. The URL is
+        // still our own server and still requires the Bearer token.
+        mockAxiosPost.mockResolvedValueOnce({
+            data: { downloadUrl: 'https://public.test/v1/sessions/test-session-id/attachments/image.enc' }
+        });
+        mockAxiosGet.mockResolvedValueOnce({ data: new Uint8Array([1, 2, 3]).buffer });
+
+        await client.downloadAttachment('sessions/test-session-id/attachments/image.enc');
+
+        const getOpts = mockAxiosGet.mock.calls[0][1];
+        expect(getOpts.headers['Authorization']).toBe('Bearer fake-token');
+    });
+
+    it('omits the Bearer token for S3 presigned download URLs', async () => {
+        const session = makeSession();
+        const client = new ApiSessionClient('fake-token', session);
+
+        mockAxiosPost.mockResolvedValueOnce({
+            data: { downloadUrl: 'https://bucket.s3.amazonaws.com/image.enc?X-Amz-Signature=abc&X-Amz-Credential=def' }
+        });
+        mockAxiosGet.mockResolvedValueOnce({ data: new Uint8Array([1]).buffer });
+
+        await client.downloadAttachment('sessions/test-session-id/attachments/image.enc');
+
+        const getOpts = mockAxiosGet.mock.calls[0][1];
+        expect(getOpts.headers['Authorization']).toBeUndefined();
+    });
 });

@@ -492,9 +492,15 @@ export class ApiSessionClient extends EventEmitter {
             throw new Error('request-download returned no downloadUrl');
         }
 
-        const isServerUrl = downloadUrl.startsWith(configuration.serverUrl);
+        // Discriminate on the presign markers rather than on
+        // `startsWith(configuration.serverUrl)`. A self-hosted server
+        // advertises its public origin (PUBLIC_URL) in downloadUrl, which will
+        // not match the origin this CLI is configured to reach it on (e.g.
+        // http://127.0.0.1:3005 behind a funnel) — the prefix check then
+        // silently drops the Bearer token and every download 401s.
+        const isPresignedUrl = /[?&](X-Amz-Signature|X-Amz-Credential|Signature)=/i.test(downloadUrl);
         const headers: Record<string, string> = {};
-        if (isServerUrl) {
+        if (!isPresignedUrl) {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
         const response = await axios.get(downloadUrl, {
