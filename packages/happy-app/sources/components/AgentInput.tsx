@@ -97,6 +97,7 @@ interface AgentInputProps {
     /** Hide the auxiliary connection/mode row while reading older messages. */
     showStatusDetails?: boolean;
     sessionStatusGitBranch?: string | null;
+    sessionStatusCwdPath?: string | null;
     sessionStatusModelLabel?: string | null;
     sessionStatusEffortLabel?: string | null;
     onFileViewerPress?: () => void;
@@ -1429,6 +1430,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                             <View style={styles.settingsStatusInfo}>
                                 <SessionStatusBar
                                     gitBranch={props.sessionStatusGitBranch}
+                                    cwdPath={props.sessionStatusCwdPath}
                                     modelLabel={props.sessionStatusModelLabel ?? null}
                                     effortLabel={props.sessionStatusEffortLabel ?? null}
                                     contextSize={props.usageData?.contextSize}
@@ -1577,6 +1579,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         <View style={styles.settingsStatusInfo}>
                                             <SessionStatusBar
                                                 gitBranch={props.sessionStatusGitBranch}
+                                                cwdPath={props.sessionStatusCwdPath}
                                                 modelLabel={props.sessionStatusModelLabel ?? null}
                                                 effortLabel={props.sessionStatusEffortLabel ?? null}
                                                 contextSize={props.usageData?.contextSize}

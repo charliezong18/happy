@@ -21,12 +21,14 @@ import {
     type UsageLimitsLike,
     type UsageLimitStatus,
 } from '@/utils/sessionStatusBar';
+import { getPathBasename } from '@/utils/pathUtils';
 import { useSetting } from '@/sync/storage';
 
 type StatusIconName = React.ComponentProps<typeof Ionicons>['name'];
 
 type SessionStatusBarProps = {
     gitBranch: string | null | undefined;
+    cwdPath?: string | null;
     modelLabel: string | null;
     modelMode?: ModelMode | null;
     availableModels?: ModelMode[];
@@ -40,7 +42,7 @@ type SessionStatusBarProps = {
     usageLimits?: UsageLimitsLike;
 };
 
-type OpenMenu = 'model' | 'effort' | 'limits' | null;
+type OpenMenu = 'model' | 'effort' | 'limits' | 'path' | null;
 
 // Below this window width the two limit chips collapse into one (the window
 // closest to its limit). Width-based rather than device-based: a narrow
@@ -83,6 +85,7 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
         return () => clearTimeout(timer);
     });
     const limitChips = getUsageLimitChips(props.usageLimits, windowWidth < LIMIT_CHIP_COLLAPSE_WIDTH, Date.now());
+    const cwdLabel = props.cwdPath ? getPathBasename(props.cwdPath) : null;
     const limitStatusColor = (status: UsageLimitStatus): string | undefined => {
         if (status === 'rejected') return theme.colors.warningCritical;
         if (status === 'allowed_warning') return theme.colors.warning;
@@ -116,8 +119,20 @@ export function SessionStatusBar(props: SessionStatusBarProps) {
             {openMenu === 'limits' ? (
                 <UsageLimitMenu usageLimits={props.usageLimits} statusColor={limitStatusColor} showRemaining={showRemaining} />
             ) : null}
+            {openMenu === 'path' && props.cwdPath ? (
+                <PathMenu path={props.cwdPath} />
+            ) : null}
             <View style={styles.container}>
                 <View style={styles.leftCluster}>
+                    {cwdLabel ? (
+                        <StatusChip
+                            icon="folder-outline"
+                            text={cwdLabel}
+                            wide
+                            active={openMenu === 'path'}
+                            onPress={() => setOpenMenu((current) => current === 'path' ? null : 'path')}
+                        />
+                    ) : null}
                     {props.gitBranch ? (
                         <StatusChip icon="git-branch-outline" text={props.gitBranch} wide />
                     ) : null}
@@ -295,6 +310,30 @@ function UsageLimitMenu(props: {
     );
 }
 
+function PathMenu(props: { path: string }) {
+    const styles = stylesheet;
+    const content = (
+        <View style={styles.limitMenuContent}>
+            <Text style={styles.pathMenuText} selectable>
+                {props.path}
+            </Text>
+        </View>
+    );
+
+    if (Platform.OS === 'web') {
+        return <View style={styles.webMenu}>{content}</View>;
+    }
+
+    return (
+        <AnimatedPopup style={styles.menu}>
+            <LocalBlurHalo borderRadius={18} expansion={12} />
+            <MobileGlassSurface enabled nativeEffect intensity={84} glassEffectStyle="regular" style={styles.menuGlass}>
+                {content}
+            </MobileGlassSurface>
+        </AnimatedPopup>
+    );
+}
+
 function ContextUsageCircle(props: {
     value: number;
     maxValue: number;
@@ -413,6 +452,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 6,
         justifyContent: 'flex-start',
     },
     rightCluster: {
@@ -549,6 +589,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
         fontSize: 11,
         lineHeight: 14,
+    },
+    pathMenuText: {
+        color: theme.colors.text,
+        fontSize: 13,
+        fontWeight: '500',
+        lineHeight: 18,
     },
     limitMenuContent: {
         paddingHorizontal: 12,

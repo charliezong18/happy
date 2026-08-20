@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveAbsolutePath, resolvePath } from './pathUtils';
+import { getPathBasename, resolveAbsolutePath, resolvePath, shortenPathWithHome } from './pathUtils';
 
 describe('pathUtils', () => {
     describe('resolveAbsolutePath', () => {
@@ -222,5 +222,53 @@ describe('pathUtils', () => {
             expect(resolveAbsolutePath('/absolute/path', macHomeDir)).toBe('/absolute/path');
             expect(resolveAbsolutePath('./relative', macHomeDir)).toBe('./relative');
         });
+    });
+});
+describe('getPathBasename', () => {
+    it('returns the last segment of a unix path', () => {
+        expect(getPathBasename('/Users/steve/Developer/op')).toBe('op');
+    });
+
+    it('ignores trailing slashes', () => {
+        expect(getPathBasename('/Users/steve/projects/')).toBe('projects');
+    });
+
+    it('handles windows separators', () => {
+        expect(getPathBasename('C:\\Users\\steve\\project')).toBe('project');
+    });
+
+    it('returns the bare home shorthand unchanged', () => {
+        expect(getPathBasename('~')).toBe('~');
+    });
+
+    it('returns the root path unchanged', () => {
+        expect(getPathBasename('/')).toBe('/');
+    });
+});
+
+describe('shortenPathWithHome', () => {
+    it('replaces the home prefix with ~', () => {
+        expect(shortenPathWithHome('/Users/steve/Developer/op', '/Users/steve')).toBe('~/Developer/op');
+    });
+
+    it('returns ~ when the path is exactly home', () => {
+        expect(shortenPathWithHome('/Users/steve', '/Users/steve')).toBe('~');
+    });
+
+    it('tolerates a trailing slash on homeDir', () => {
+        expect(shortenPathWithHome('/Users/steve/Developer', '/Users/steve/')).toBe('~/Developer');
+    });
+
+    it('does not shorten sibling directories that share a prefix', () => {
+        expect(shortenPathWithHome('/Users/steven/code', '/Users/steve')).toBe('/Users/steven/code');
+    });
+
+    it('handles windows separators', () => {
+        expect(shortenPathWithHome('C:\\Users\\steve\\code', 'C:\\Users\\steve')).toBe('~\\code');
+    });
+
+    it('returns the path unchanged without a homeDir', () => {
+        expect(shortenPathWithHome('/srv/app', undefined)).toBe('/srv/app');
+        expect(shortenPathWithHome('/srv/app', null)).toBe('/srv/app');
     });
 });

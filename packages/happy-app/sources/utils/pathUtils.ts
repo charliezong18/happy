@@ -73,3 +73,39 @@ export function resolveAbsolutePath(path: string, homeDir?: string): string {
     // Handle ~username paths (not supported, return original)
     return path;
 }
+/**
+ * Last path segment for compact display (e.g. the statusbar cwd chip).
+ * Trailing separators are ignored; a bare root ('/') is returned as-is.
+ */
+export function getPathBasename(path: string): string {
+    const trimmed = path.replace(/[\\/]+$/, '');
+    if (trimmed === '') {
+        return path;
+    }
+    const lastSeparator = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+    return lastSeparator >= 0 ? trimmed.slice(lastSeparator + 1) : trimmed;
+}
+
+/**
+ * Inverse of resolveAbsolutePath, for display: replaces the homeDir prefix
+ * with '~'. Separator-aware so '/Users/steven' is not shortened by a homeDir
+ * of '/Users/steve'.
+ */
+export function shortenPathWithHome(path: string, homeDir?: string | null): string {
+    if (!homeDir) {
+        return path;
+    }
+    const normalizedHome = homeDir.endsWith('/') || homeDir.endsWith('\\')
+        ? homeDir.slice(0, -1)
+        : homeDir;
+    if (normalizedHome === '') {
+        return path;
+    }
+    if (path === normalizedHome) {
+        return '~';
+    }
+    if (path.startsWith(normalizedHome + '/') || path.startsWith(normalizedHome + '\\')) {
+        return '~' + path.slice(normalizedHome.length);
+    }
+    return path;
+}

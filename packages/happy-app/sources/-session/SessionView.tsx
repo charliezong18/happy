@@ -32,6 +32,7 @@ import { sessionAbort, sessionGoalAction, sessionSetAgentModes, spawnSideChat, s
 import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSessionGitStatus, useSessionMessages, useSessionUsage, useSetting, useSideChatSessions } from '@/sync/storage';
 import { useSession } from '@/sync/storage';
 import { getSessionForkSource } from '@/utils/sessionFork';
+import { shortenPathWithHome } from '@/utils/pathUtils';
 import { useHappyAction } from '@/hooks/useHappyAction';
 import { HappyError } from '@/utils/errors';
 import { Session } from '@/sync/storageTypes';
@@ -880,6 +881,9 @@ export function SessionViewLoaded({
     const statusBarEffortLabel = effortLevel?.name
         ? effortLevel.name.charAt(0).toUpperCase() + effortLevel.name.slice(1)
         : null;
+    const statusBarCwdPath = session.metadata?.path
+        ? shortenPathWithHome(session.metadata.path, session.metadata.homeDir)
+        : null;
 
     const visibleAgentGoal = React.useMemo(() => (
         resolveVisibleAgentGoalStatus(session)
@@ -1050,6 +1054,7 @@ export function SessionViewLoaded({
             sessionStatusGitBranch={statusBarGitBranch}
             sessionStatusModelLabel={statusBarModelLabel}
             sessionStatusEffortLabel={statusBarEffortLabel}
+            sessionStatusCwdPath={statusBarCwdPath}
         />
     );
 
@@ -1077,6 +1082,7 @@ export function SessionViewLoaded({
         <CenteredInputWidth horizontalPadding={sessionInputHorizontalPadding}>
             <SessionStatusBar
                 gitBranch={statusBarGitBranch}
+                cwdPath={statusBarCwdPath}
                 modelLabel={statusBarModelLabel}
                 modelMode={modelMode}
                 availableModels={availableModels}
