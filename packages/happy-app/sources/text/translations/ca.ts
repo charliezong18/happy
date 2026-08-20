@@ -1058,6 +1058,10 @@ export const ca: TranslationStructure = {
             : `No s'han pogut pujar ${count} imatges i no s'han enviat.`,
         notSupportedTitle: 'Imatges no compatibles',
         notSupportedMessage: 'Aquest agent no admet fitxers adjunts d\'imatge. Les imatges no s\'han enviat.',
+        processingFailedTitle: 'Imatge no afegida',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? 'No s\'ha pogut llegir una imatge i no s\'ha afegit.'
+            : `No s'han pogut llegir ${count} imatges i no s'han afegit.`,
     },
 
     feed: {

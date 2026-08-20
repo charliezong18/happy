@@ -1059,6 +1059,10 @@ export const es: TranslationStructure = {
             : `No se pudieron subir ${count} imágenes y no se enviaron.`,
         notSupportedTitle: 'Imágenes no compatibles',
         notSupportedMessage: 'Este agente no admite archivos adjuntos de imagen. Las imágenes no se enviaron.',
+        processingFailedTitle: 'Imagen no añadida',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? 'No se pudo leer una imagen y no se añadió.'
+            : `No se pudieron leer ${count} imágenes y no se añadieron.`,
     },
 
     feed: {

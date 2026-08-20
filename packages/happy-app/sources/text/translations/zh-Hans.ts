@@ -1059,6 +1059,10 @@ export const zhHans: TranslationStructure = {
             : `${count} 张图片上传失败，未发送。`,
         notSupportedTitle: '不支持图片',
         notSupportedMessage: '此代理不支持图片附件。图片未发送。',
+        processingFailedTitle: '图片未添加',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? '一张图片无法读取，未添加。'
+            : `${count} 张图片无法读取，未添加。`,
     },
 
     feed: {

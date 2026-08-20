@@ -5,9 +5,10 @@
  * Enforces limits: max 20 images per message, 10MB per file.
  *
  * Note: fileSize from expo-image-picker is optional — some platforms do not
- * provide it (returns undefined → size=0). Such files pass the client-side
- * size check; the server enforces the limit on upload. Phase 5 should handle
- * 413 responses gracefully.
+ * provide it. The size gate therefore measures the byte size of the file that
+ * will actually be uploaded (iOS re-encodes to JPEG first); only when neither
+ * a measured size nor fileSize is available does a file pass the client-side
+ * check, and the server enforces the limit on upload.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import * as ImagePicker from 'expo-image-picker';
@@ -15,6 +16,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 import { Modal } from '@/modal';
 import { generateThumbhash } from '@/utils/thumbhash';
+import { getUriByteSize } from '@/utils/getUriByteSize';
 import { t } from '@/text';
 import type { AttachmentPreview } from '@/sync/attachmentTypes';
 
@@ -69,6 +71,66 @@ export async function normalizePickedAssetForUpload(asset: ImagePicker.ImagePick
         mimeType: 'image/jpeg',
         name: withJpegExtension(asset.fileName),
     };
+}
+
+export type ProcessedPickedAssets = {
+    previews: AttachmentPreview[];
+    /** Display names of assets rejected for exceeding MAX_FILE_SIZE. */
+    tooLarge: string[];
+    /** Count of assets that could not be read or converted at all. */
+    unreadable: number;
+};
+
+export async function processPickedAssets(assets: ImagePicker.ImagePickerAsset[]): Promise<ProcessedPickedAssets> {
+    const previews: AttachmentPreview[] = [];
+    const tooLarge: string[] = [];
+    let unreadable = 0;
+
+    for (const asset of assets) {
+        let normalized: Awaited<ReturnType<typeof normalizePickedAssetForUpload>>;
+        try {
+            normalized = await normalizePickedAssetForUpload(asset);
+        } catch (err) {
+            // Unreadable container (e.g. DNG/RAW from third-party camera apps);
+            // skip it without killing the rest of the batch.
+            console.error('[useImagePicker] Failed to prepare image for attaching:', err);
+            unreadable++;
+            continue;
+        }
+
+        // Gate on the size of the file that will actually be uploaded: iOS
+        // re-encodes to JPEG above, and asset.fileSize may be absent entirely
+        // (third-party camera apps) — defaulting it to 0 would skip the gate.
+        const size = (await getUriByteSize(normalized.uri)) ?? asset.fileSize ?? 0;
+        if (size > MAX_FILE_SIZE) {
+            tooLarge.push(asset.fileName ?? normalized.name);
+            continue;
+        }
+
+        // Skip thumbhash if dimensions are unavailable (prevents divide-by-zero).
+        let thumbhash: string | undefined;
+        if (normalized.width > 0 && normalized.height > 0) {
+            try {
+                thumbhash = await generateThumbhash(normalized.uri, normalized.width, normalized.height);
+            } catch (err) {
+                // Thumbhash is a nicety — attach the image without one.
+                console.error('[useImagePicker] Failed to generate thumbhash:', err);
+            }
+        }
+
+        previews.push({
+            id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            uri: normalized.uri,
+            width: normalized.width,
+            height: normalized.height,
+            mimeType: normalized.mimeType,
+            size,
+            name: normalized.name,
+            thumbhash,
+        });
+    }
+
+    return { previews, tooLarge, unreadable };
 }
 
 export function useImagePicker(): UseImagePickerResult {
@@ -128,37 +190,22 @@ export function useImagePicker(): UseImagePickerResult {
 
         // On web, selectionLimit is not enforced by the browser — clamp here.
         const assets = result.assets.slice(0, remaining);
-        const previews: AttachmentPreview[] = [];
+        const { previews, tooLarge, unreadable } = await processPickedAssets(assets);
 
-        for (const asset of assets) {
-            const size = asset.fileSize ?? 0;
+        for (const name of tooLarge) {
+            Modal.alert(
+                t('imageUpload.fileTooLargeTitle'),
+                t('imageUpload.fileTooLargeMessage', { name, maxMb: 10 }),
+                [{ text: t('common.ok') }],
+            );
+        }
 
-            if (size > MAX_FILE_SIZE) {
-                Modal.alert(
-                    t('imageUpload.fileTooLargeTitle'),
-                    t('imageUpload.fileTooLargeMessage', { name: asset.fileName ?? 'image', maxMb: 10 }),
-                    [{ text: t('common.ok') }],
-                );
-                continue;
-            }
-
-            const normalized = await normalizePickedAssetForUpload(asset);
-
-            // Skip thumbhash if dimensions are unavailable (prevents divide-by-zero).
-            const thumbhash = (normalized.width > 0 && normalized.height > 0)
-                ? await generateThumbhash(normalized.uri, normalized.width, normalized.height)
-                : undefined;
-
-            previews.push({
-                id: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
-                uri: normalized.uri,
-                width: normalized.width,
-                height: normalized.height,
-                mimeType: normalized.mimeType,
-                size,
-                name: normalized.name,
-                thumbhash,
-            });
+        if (unreadable > 0) {
+            Modal.alert(
+                t('imageUpload.processingFailedTitle'),
+                t('imageUpload.processingFailedMessage', { count: unreadable }),
+                [{ text: t('common.ok') }],
+            );
         }
 
         if (previews.length > 0) {

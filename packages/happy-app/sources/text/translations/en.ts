@@ -1073,6 +1073,10 @@ export const en: TranslationStructure = {
             : `${count} images could not be uploaded and were not sent.`,
         notSupportedTitle: 'Images Not Supported',
         notSupportedMessage: 'This agent does not support image attachments. Images were not sent.',
+        processingFailedTitle: 'Image Not Added',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? 'One image could not be read and was not added.'
+            : `${count} images could not be read and were not added.`,
     },
 
     feed: {

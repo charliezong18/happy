@@ -1058,6 +1058,10 @@ export const zhHant: TranslationStructure = {
             : `${count} 張圖片上傳失敗，未傳送。`,
         notSupportedTitle: '不支援圖片',
         notSupportedMessage: '此代理不支援圖片附件。圖片未傳送。',
+        processingFailedTitle: '圖片未加入',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? '一張圖片無法讀取，未加入。'
+            : `${count} 張圖片無法讀取，未加入。`,
     },
 
     feed: {

@@ -1060,6 +1060,10 @@ export const ja: TranslationStructure = {
             : `${count}枚の画像をアップロードできず、送信されませんでした。`,
         notSupportedTitle: '画像はサポートされていません',
         notSupportedMessage: 'このエージェントは画像の添付に対応していません。画像は送信されませんでした。',
+        processingFailedTitle: '画像を追加できませんでした',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? '1枚の画像を読み込めず、追加されませんでした。'
+            : `${count}枚の画像を読み込めず、追加されませんでした。`,
     },
 
     feed: {

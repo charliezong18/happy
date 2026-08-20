@@ -1057,6 +1057,10 @@ export const it: TranslationStructure = {
             : `Non è stato possibile caricare ${count} immagini e non sono state inviate.`,
         notSupportedTitle: 'Immagini non supportate',
         notSupportedMessage: 'Questo agente non supporta gli allegati immagine. Le immagini non sono state inviate.',
+        processingFailedTitle: 'Immagine non aggiunta',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? 'Non è stato possibile leggere un\'immagine e non è stata aggiunta.'
+            : `Non è stato possibile leggere ${count} immagini e non sono state aggiunte.`,
     },
 
     feed: {

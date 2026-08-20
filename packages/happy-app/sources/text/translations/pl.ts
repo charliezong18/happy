@@ -1088,6 +1088,10 @@ export const pl: TranslationStructure = {
             : `Nie udało się przesłać ${count} zdjęć i nie zostały wysłane.`,
         notSupportedTitle: 'Obrazy nieobsługiwane',
         notSupportedMessage: 'Ten agent nie obsługuje załączników obrazów. Obrazy nie zostały wysłane.',
+        processingFailedTitle: 'Obraz nie został dodany',
+        processingFailedMessage: ({ count }: { count: number }) => count === 1
+            ? 'Nie udało się odczytać jednego obrazu i nie został dodany.'
+            : `Nie udało się odczytać ${count} obrazów i nie zostały dodane.`,
     },
 
     feed: {
