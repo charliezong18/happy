@@ -1524,14 +1524,18 @@ function NewSessionScreen() {
 
                     // Remember where this went, not where a worktree put it —
                     // absolutePath is the project the user actually picked.
-                    setRecentPathsByMachine({
-                        ...recentPathsByMachine,
-                        [selectedMachineId]: withRecentPath(
-                            recentPathsByMachine[selectedMachineId],
-                            absolutePath,
-                            (p) => normalizePathForComparison(p, selectedMachine.metadata?.homeDir),
-                        ),
-                    });
+                    // Keyed by the draft's selection id — the same key pathItems
+                    // reads — not by the resolved half's machine id.
+                    if (selectedMachineId) {
+                        setRecentPathsByMachine({
+                            ...recentPathsByMachine,
+                            [selectedMachineId]: withRecentPath(
+                                recentPathsByMachine[selectedMachineId],
+                                absolutePath,
+                                (p) => normalizePathForComparison(p, machine.metadata?.homeDir),
+                            ),
+                        });
+                    }
 
                     // Store only per-session overrides. Matching the effective
                     // default stays null so future code default changes apply.
