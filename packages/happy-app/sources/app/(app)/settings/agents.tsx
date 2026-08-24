@@ -22,7 +22,9 @@ import {
     type AgentDefaultField,
     type AgentKey,
 } from '@/sync/agentDefaults';
+import { getHarnessName, isRetiredHarness } from '@/utils/harnessCatalog';
 import { t } from '@/text';
+import { Modal } from '@/modal';
 
 type ExpandedField = {
     agent: AgentKey;
@@ -38,12 +40,17 @@ type FieldConfig = {
 };
 
 const agentLabels: Record<AgentKey, string> = {
-    claude: 'Claude Code',
-    codex: 'Codex',
-    gemini: 'Gemini',
-    openclaw: 'OpenClaw',
-    agy: 'Agy',
+    claude: getHarnessName('claude'),
+    codex: getHarnessName('codex'),
+    gemini: getHarnessName('gemini'),
+    openclaw: getHarnessName('openclaw'),
+    agy: getHarnessName('agy'),
 };
+
+// A retired harness keeps its stored defaults — the schema still carries them,
+// and "Reset all" still clears them — but there is nothing to configure for an
+// agent you can no longer start a session with.
+const configurableAgentKeys = agentKeys.filter((agent) => !isRetiredHarness(agent));
 
 function optionName(options: ModeOption[], key: string | null | undefined): string {
     if (!key) return 'none';
@@ -66,6 +73,22 @@ export default function AgentDefaultsSettingsScreen() {
         // would never take effect.
         useNewSessionDraft.getState().clearAgentMode(agent, field);
     }, [agentDefaultOverrides, setAgentDefaultOverrides]);
+
+    const editCustomCodexModel = React.useCallback(async (currentValue?: string) => {
+        const value = await Modal.prompt(
+            'Custom Codex model',
+            'Enter an exact model ID. Availability depends on your Codex account or API configuration.',
+            {
+                defaultValue: currentValue ?? '',
+                placeholder: 'model-id',
+                confirmText: 'Save',
+            },
+        );
+        const model = value?.trim();
+        if (model) {
+            updateOverride('codex', 'modelMode', model);
+        }
+    }, [updateOverride]);
 
     const renderOption = (
         agent: AgentKey,
@@ -97,6 +120,10 @@ export default function AgentDefaultsSettingsScreen() {
             ? optionName(config.options, overrideValue)
             : `Default (${optionName(config.options, effectiveValue)})`;
         const codeDefaultLabel = optionName(config.options, config.codeDefaultKey);
+        const isCustomCodexModel = agent === 'codex'
+            && config.field === 'modelMode'
+            && Boolean(overrideValue)
+            && !config.options.some((option) => option.key === overrideValue);
 
         return (
             <React.Fragment key={`${agent}-${config.field}`}>
@@ -124,6 +151,17 @@ export default function AgentDefaultsSettingsScreen() {
                             hasOverride && overrideValue === option.key,
                             option.key,
                         ))}
+                        {agent === 'codex' && config.field === 'modelMode' && (
+                            <Item
+                                title="Custom model…"
+                                subtitle={isCustomCodexModel ? overrideValue : 'Enter an exact model ID'}
+                                onPress={() => editCustomCodexModel(isCustomCodexModel ? overrideValue : undefined)}
+                                showChevron={false}
+                                rightElement={isCustomCodexModel ? (
+                                    <Ionicons name="checkmark" size={20} color={theme.colors.header.tint} />
+                                ) : undefined}
+                            />
+                        )}
                     </>
                 )}
             </React.Fragment>
@@ -148,10 +186,7 @@ export default function AgentDefaultsSettingsScreen() {
                 />
             </ItemGroup>
 
-            {/* The gemini backend is deprecated in favor of agy, so no defaults
-                section for it — but 'gemini' stays in the schema so stored
-                overrides and existing sessions keep resolving. */}
-            {agentKeys.filter((agent) => agent !== 'gemini').map((agent) => {
+            {configurableAgentKeys.map((agent) => {
                 const codeDefaults = getCodeAgentDefaults(agent);
                 const effectiveDefaults = resolveAgentDefaultConfig(agentDefaultOverrides, agent);
                 const permissionOptions = getHardcodedPermissionModes(agent, t);

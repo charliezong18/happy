@@ -23,12 +23,14 @@ import { useRouter } from 'expo-router';
 import { SessionShortcutHintBadge } from './ShortcutHints';
 import { buildActiveSessionDisplayGroups } from '@/utils/sessionDisplayOrder';
 import { ProviderIcon } from './ProviderIcon';
+import { RigGitLineChanges } from './RigGitLineChanges';
 
 const STATUS_CONFIG: Record<SessionState, { color: string; dotColor: string; isPulsing: boolean; isConnected: boolean }> = {
     disconnected: { color: '#999', dotColor: '#999', isPulsing: false, isConnected: false },
     thinking: { color: '#007AFF', dotColor: '#007AFF', isPulsing: true, isConnected: true },
     waiting: { color: '#34C759', dotColor: '#34C759', isPulsing: false, isConnected: true },
     permission_required: { color: '#FF9500', dotColor: '#FF9500', isPulsing: true, isConnected: true },
+    input_required: { color: '#FF9500', dotColor: '#FF9500', isPulsing: true, isConnected: true },
 };
 
 interface ActiveSessionsGroupProps {
@@ -100,7 +102,7 @@ const SectionHeader = React.memo(({ session, displayPath }: { session: SessionRo
         >
             {/* Avatar — vertically centered */}
             <View style={styles.sectionHeaderAvatar}>
-                <Avatar id={session.avatarId} size={24} flavor={null} />
+                <Avatar id={session.avatarId} size={24} flavor={null} imageUrl={session.projectAvatarUri} thumbhash={session.projectAvatarThumbhash} />
             </View>
 
             {/* Path + branch */}
@@ -229,10 +231,12 @@ export const CompactSessionRow = React.memo(({ session, selected, showBorder }: 
     // Override to a solid color when session has unread results; purple (toggleable
     // in appearance settings) is distinct from the pulsing blue = thinking dot.
     // Only override while the session is settled — if it started working again
-    // (or waits on a permission), the live state takes precedence over unread.
+    // (or waits on a permission or an answer), the live state takes precedence
+    // over unread.
     const unreadIndicatorPurple = useSetting('unreadIndicatorPurple');
     const unreadColor = unreadIndicatorPurple ? '#AF52DE' : '#007AFF';
-    const showUnread = session.hasUnread && session.state !== 'thinking' && session.state !== 'permission_required';
+    const needsUserAction = session.state === 'permission_required' || session.state === 'input_required';
+    const showUnread = session.hasUnread && !needsUserAction && session.state !== 'thinking';
     const status = showUnread
         ? { ...baseStatus, color: unreadColor, dotColor: unreadColor, isPulsing: false, isConnected: baseStatus.isConnected }
         : baseStatus;
@@ -277,7 +281,9 @@ export const CompactSessionRow = React.memo(({ session, selected, showBorder }: 
     const renderLeadingIndicator = () => {
         let indicator: React.ReactNode = null;
 
-        if (showUnread) {
+        if (needsUserAction) {
+            indicator = <StatusDot color={status.dotColor} isPulsing={status.isPulsing} />;
+        } else if (showUnread) {
             indicator = <StatusDot color={status.dotColor} isPulsing={false} />;
         } else if (session.state === 'waiting' && session.hasDraft) {
             indicator = (
@@ -287,7 +293,7 @@ export const CompactSessionRow = React.memo(({ session, selected, showBorder }: 
                     color={theme.colors.textSecondary}
                 />
             );
-        } else if (session.state === 'permission_required' || session.state === 'thinking') {
+        } else if (session.state === 'thinking') {
             indicator = <StatusDot color={status.dotColor} isPulsing={status.isPulsing} />;
         } else if (session.state === 'waiting') {
             indicator = <StatusDot color={theme.colors.textSecondary} isPulsing={false} />;
@@ -328,12 +334,24 @@ export const CompactSessionRow = React.memo(({ session, selected, showBorder }: 
                         style={styles.sessionShortcutBadge}
                     />
                 </View>
-                {session.identityLine && (
+                {(session.identityLine || session.gitChangedFiles !== null) && (
                     <View style={styles.sessionIdentityRow}>
-                        <ProviderIcon kind={session.providerKind} size={11} />
-                        <Text style={styles.sessionIdentity} numberOfLines={1}>
-                            {session.identityLine}{session.modelName ? ` · ${session.modelName}` : ''}{session.activitySummary ? ` · ${session.activitySummary}` : ''}
-                        </Text>
+                        {session.identityLine && (
+                            <>
+                                <ProviderIcon kind={session.providerKind} size={11} />
+                                <Text style={styles.sessionIdentity} numberOfLines={1}>
+                                    {session.identityLine}{session.modelName ? ` · ${session.modelName}` : ''}{session.activitySummary ? ` · ${session.activitySummary}` : ''}
+                                </Text>
+                            </>
+                        )}
+                        {session.gitChangedFiles !== null && (
+                            <RigGitLineChanges
+                                changedFiles={session.gitChangedFiles}
+                                countsExact={session.gitCountsExact}
+                                deletions={session.gitDeletions ?? 0}
+                                insertions={session.gitInsertions ?? 0}
+                            />
+                        )}
                     </View>
                 )}
             </View>
@@ -522,6 +540,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 11,
         color: theme.colors.textSecondary,
         ...Typography.default('regular'),
+        flex: 1,
+        minWidth: 0,
         flexShrink: 1,
     },
     sessionIdentityRow: {
