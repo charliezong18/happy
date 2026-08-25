@@ -675,15 +675,22 @@ type UsageRowProps = {
     weekLabel: string | null;
     /** Prebuilt "Session — 32% · resets 6 PM" rows for the week popup. */
     usageMenuOptions: NativeSettingsMenuOption[];
+    /**
+     * "fable · max" readout, fork-only. Upstream's redesign left the resting
+     * composer with no model indicator at all on web; this keeps the current
+     * model and effort visible where the status bar used to say them.
+     */
+    modelText: string | null;
 };
 
-// Sits under the composer card, right-aligned with the effort label: week
-// quota (tap for the session/week detail popup) and the context gauge (tap
-// to swap the percent for exact token counts).
+// Sits under the composer card: the current model on the left (fork), then
+// right-aligned with the effort label the week quota (tap for the
+// session/week detail popup) and the context gauge (tap to swap the percent
+// for exact token counts).
 const AgentInputUsageRow = React.memo(function AgentInputUsageRow(p: UsageRowProps) {
     const { theme } = useUnistyles();
     const [showPreciseContext, setShowPreciseContext] = React.useState(false);
-    if (!p.contextStatus && p.weekPercent == null) {
+    if (!p.contextStatus && p.weekPercent == null && !p.modelText) {
         return null;
     }
     const weekText = p.weekPercent != null ? (
@@ -705,6 +712,15 @@ const AgentInputUsageRow = React.memo(function AgentInputUsageRow(p: UsageRowPro
             paddingTop: 6,
             minHeight: 18,
         }}>
+            {p.modelText && (
+                <Text
+                    style={{ fontSize: 11, color: theme.colors.textSecondary, flexShrink: 1, ...Typography.default() }}
+                    numberOfLines={1}
+                >
+                    {p.modelText}
+                </Text>
+            )}
+            <View style={{ flex: 1 }} />
             {weekText && (
                 p.usageMenuOptions.length > 0 ? (
                     <NativeSettingsMenu
@@ -943,6 +959,13 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         ? getUsageLimitDisplayPercentage(usageHeadline.row.utilization, usageLimitShowRemaining)
         : null;
     const weekLabel = usageHeadline?.label ?? null;
+    // Fork: name the current model (and effort) in the resting usage row —
+    // upstream's redesign says the model only inside the pickers.
+    const usageModelText = props.modelMode?.name
+        ? props.effortLevel?.name
+            ? `${props.modelMode.name} · ${props.effortLevel.name}`
+            : props.modelMode.name
+        : null;
     const usageMenuOptions = React.useMemo<NativeSettingsMenuOption[]>(() => {
         const options: NativeSettingsMenuOption[] = [];
         const push = (key: string, label: string, row: { utilization: number | null; resetsAt: number | null } | null) => {
@@ -2335,6 +2358,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         weekPercent={weekPercent}
                         weekLabel={weekLabel}
                         usageMenuOptions={usageMenuOptions}
+                        modelText={usageModelText}
                     />
                 </AnimatedFade>
             </View>
