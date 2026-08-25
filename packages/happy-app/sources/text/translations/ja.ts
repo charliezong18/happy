@@ -18,6 +18,13 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 export const ja: TranslationStructure = {
+    voiceStatusBar: {
+        tapToEnd: 'タップして終了',
+        connecting: '接続中…',
+        error: '接続エラー',
+        active: '音声アシスタント作動中',
+    },
+
     tabs: {
         // Tab navigation labels
         inbox: '受信トレイ',
@@ -165,13 +172,6 @@ export const ja: TranslationStructure = {
         },
         chat: 'チャット',
         chatDescription: 'チャットメッセージの見た目をカスタマイズ',
-        sessionStatusBar: 'セッションステータス情報',
-        sessionStatusBarDescription: 'ブランチ、モデル、エフォート、コンテキストの表示場所を選択',
-        sessionStatusDisplayOptions: {
-            hidden: '非表示',
-            above: '入力欄の上',
-            below: '入力欄の下',
-        },
         usageLimitShowRemaining: '残量を表示',
         usageLimitShowRemainingDescription: '上限を使用量ではなく残量で表示します',
         userMessageBubbleColor: 'ユーザーバブルの色',
@@ -190,14 +190,35 @@ export const ja: TranslationStructure = {
         compactToolCallsDescription: '非対話型のツール呼び出しを1行で表示し、行を開いて詳細を確認します',
         showLineNumbersInToolViews: 'ツールビューに行番号を表示',
         showLineNumbersInToolViewsDescription: 'ツールビューの差分に行番号を表示',
-        alwaysShowContextSize: '常にコンテキストサイズを表示',
-        alwaysShowContextSizeDescription: '上限に近づいていなくてもコンテキスト使用量を表示',
+        alwaysShowContextSize: '使用状況を表示',
+        alwaysShowContextSizeDescription: '入力欄の下にコンテキストとプラン使用量を表示。上限間近の警告は常に表示されます。',
+        input: '入力',
+        inputDescription: 'メッセージ入力の設定',
         showHarnessIconInSessionHeader: 'セッションヘッダーにハーネスアイコンを表示',
         showHarnessIconInSessionHeaderDescription: 'セッションヘッダーにハーネスアイコンを表示',
         showHarnessIconsInSessionList: 'セッションリストにハーネスアイコンを表示',
         showHarnessIconsInSessionListDescription: 'セッションリストのアバターにハーネスアイコンを表示',
         unreadIndicatorPurple: '未読インジケーターを紫色に',
         unreadIndicatorPurpleDescription: '完了したセッションの未読ドットを青ではなく紫色で表示',
+        avatars: 'アバター',
+        avatarsDescription: '生成されるセッションアバターの見た目を選択',
+        avatarStyle: 'アバターのスタイル',
+        avatarStyleOptions: {
+            brutalist: 'ブルータリズム',
+            pixelated: 'ピクセル',
+            gradient: 'グラデーション',
+        },
+        avatarMonochrome: '白黒アバター',
+        avatarMonochromeDescription: 'アバターを色なしで表示',
+    },
+
+    sessionsFilter: {
+        // Filter menu on the home sessions list header
+        title: 'フィルター',
+        groupingTitle: 'グループ化',
+        flatList: 'フラットリスト',
+        groupByProject: 'プロジェクト別にグループ化',
+        appearanceSettings: '外観設定',
     },
 
     settingsFeatures: {
@@ -422,14 +443,6 @@ export const ja: TranslationStructure = {
             stopGoal: '目標を停止',
             editGoal: '目標を編集',
         },
-        sessionStatusBar: {
-            contextUsage: ({ used, total, percent }: { used: string; total: string; percent: number }) => `コンテキスト ${total}トークン中${used}、${percent}%`,
-            limitFiveHour: '5時間の上限',
-            limitSevenDay: '7日間の上限',
-            limitResets: ({ time }: { time: string }) => `${time} リセット`,
-            limitAsOf: ({ age }: { age: string }) => `${age}前のデータ`,
-            limitRemaining: ({ percent }: { percent: number }) => `残り ${percent}%`,
-        },
     },
 
     agentInput: {
@@ -496,7 +509,14 @@ export const ja: TranslationStructure = {
             badgePlan: 'プラン',
         },
         context: {
-            remaining: ({ percent }: { percent: number }) => `残り ${percent}%`,
+            detailContext: ({ used, total }: { used: string; total: string }) => `コンテキスト ${used} / ${total}`,
+            percentContext: ({ percent }: { percent: number }) => `コンテキスト ${percent}%`,
+            percentWeek: ({ percent }: { percent: number }) => `週 ${percent}%`,
+        },
+        usagePopup: {
+            session: 'セッション',
+            week: '週',
+            resets: ({ time }: { time: string }) => `リセット ${time}`,
         },
         suggestion: {
             fileLabel: 'ファイル',

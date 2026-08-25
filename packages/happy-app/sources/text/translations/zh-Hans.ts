@@ -17,6 +17,13 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 export const zhHans: TranslationStructure = {
+    voiceStatusBar: {
+        tapToEnd: '点按结束',
+        connecting: '连接中…',
+        error: '连接错误',
+        active: '语音助手运行中',
+    },
+
     tabs: {
         // Tab navigation labels
         inbox: '收件箱',
@@ -165,13 +172,6 @@ export const zhHans: TranslationStructure = {
         },
         chat: '聊天',
         chatDescription: '自定义聊天消息外观',
-        sessionStatusBar: '会话状态信息',
-        sessionStatusBarDescription: '选择分支、模型、工作量和上下文的显示位置',
-        sessionStatusDisplayOptions: {
-            hidden: '隐藏',
-            above: '输入框上方',
-            below: '输入框下方',
-        },
         usageLimitShowRemaining: '显示剩余额度',
         usageLimitShowRemainingDescription: '额度指示器显示剩余量，而不是已用量',
         userMessageBubbleColor: '用户气泡颜色',
@@ -190,14 +190,35 @@ export const zhHans: TranslationStructure = {
         compactToolCallsDescription: '将非交互式工具调用显示为单行；打开该行可查看详情',
         showLineNumbersInToolViews: '在工具视图中显示行号',
         showLineNumbersInToolViewsDescription: '在工具视图差异中显示行号',
-        alwaysShowContextSize: '始终显示上下文大小',
-        alwaysShowContextSizeDescription: '即使未接近限制时也显示上下文使用情况',
+        alwaysShowContextSize: '显示用量',
+        alwaysShowContextSizeDescription: '在输入框下方显示上下文和套餐用量。接近上限时始终显示警告。',
+        input: '输入',
+        inputDescription: '配置消息输入框',
         showHarnessIconInSessionHeader: '在会话标题中显示 harness 图标',
         showHarnessIconInSessionHeaderDescription: '在会话标题中显示 harness 图标',
         showHarnessIconsInSessionList: '在会话列表中显示 harness 图标',
         showHarnessIconsInSessionListDescription: '在会话列表的头像上显示 harness 图标',
         unreadIndicatorPurple: '紫色未读指示点',
         unreadIndicatorPurpleDescription: '已完成会话的未读点显示为紫色而非蓝色',
+        avatars: '头像',
+        avatarsDescription: '选择生成的会话头像外观',
+        avatarStyle: '头像样式',
+        avatarStyleOptions: {
+            brutalist: '粗野主义',
+            pixelated: '像素',
+            gradient: '渐变',
+        },
+        avatarMonochrome: '黑白头像',
+        avatarMonochromeDescription: '不带颜色显示头像',
+    },
+
+    sessionsFilter: {
+        // Filter menu on the home sessions list header
+        title: '筛选',
+        groupingTitle: '分组',
+        flatList: '平铺列表',
+        groupByProject: '按项目分组',
+        appearanceSettings: '外观设置',
     },
 
     settingsFeatures: {
@@ -422,14 +443,6 @@ export const zhHans: TranslationStructure = {
             stopGoal: '停止目标',
             editGoal: '编辑目标',
         },
-        sessionStatusBar: {
-            contextUsage: ({ used, total, percent }: { used: string; total: string; percent: number }) => `上下文 ${used}/${total} 个令牌，${percent}%`,
-            limitFiveHour: '5 小时额度',
-            limitSevenDay: '7 天额度',
-            limitResets: ({ time }: { time: string }) => `${time} 重置`,
-            limitAsOf: ({ age }: { age: string }) => `数据为 ${age} 前`,
-            limitRemaining: ({ percent }: { percent: number }) => `剩余 ${percent}%`,
-        },
     },
 
     agentInput: {
@@ -496,7 +509,14 @@ export const zhHans: TranslationStructure = {
             badgePlan: '计划',
         },
         context: {
-            remaining: ({ percent }: { percent: number }) => `剩余 ${percent}%`,
+            detailContext: ({ used, total }: { used: string; total: string }) => `上下文 ${used} / ${total}`,
+            percentContext: ({ percent }: { percent: number }) => `上下文 ${percent}%`,
+            percentWeek: ({ percent }: { percent: number }) => `本周 ${percent}%`,
+        },
+        usagePopup: {
+            session: '会话',
+            week: '周',
+            resets: ({ time }: { time: string }) => `重置于 ${time}`,
         },
         suggestion: {
             fileLabel: '文件',

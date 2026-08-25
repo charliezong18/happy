@@ -15,6 +15,13 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  * Must match the exact structure of the English translations
  */
 export const pt: TranslationStructure = {
+    voiceStatusBar: {
+        tapToEnd: 'toque para encerrar',
+        connecting: 'Conectando…',
+        error: 'Erro de conexão',
+        active: 'Assistente de voz ativo',
+    },
+
     tabs: {
         // Tab navigation labels
         inbox: 'Caixa de entrada',
@@ -163,13 +170,6 @@ export const pt: TranslationStructure = {
         },
         chat: 'Chat',
         chatDescription: 'Personalize a aparência das mensagens do chat',
-        sessionStatusBar: 'Informações de status da sessão',
-        sessionStatusBarDescription: 'Escolha onde a branch, o modelo, o esforço e o contexto aparecem',
-        sessionStatusDisplayOptions: {
-            hidden: 'Oculto',
-            above: 'Acima do compositor',
-            below: 'Abaixo do compositor',
-        },
         usageLimitShowRemaining: 'Mostrar cota restante',
         usageLimitShowRemainingDescription: 'Os indicadores de limite contam para baixo em vez de para cima',
         userMessageBubbleColor: 'Cor das suas mensagens',
@@ -188,14 +188,35 @@ export const pt: TranslationStructure = {
         compactToolCallsDescription: 'Mostre chamadas não interativas em uma linha; abra a linha para ver detalhes',
         showLineNumbersInToolViews: 'Mostrar números de linha nas visualizações de ferramentas',
         showLineNumbersInToolViewsDescription: 'Exibir números de linha nos diffs das visualizações de ferramentas',
-        alwaysShowContextSize: 'Sempre mostrar tamanho do contexto',
-        alwaysShowContextSizeDescription: 'Exibir uso do contexto mesmo quando não estiver próximo do limite',
+        alwaysShowContextSize: 'Mostrar uso',
+        alwaysShowContextSizeDescription: 'Contexto e limites do plano abaixo do campo. Avisos perto do limite sempre aparecem.',
+        input: 'Entrada',
+        inputDescription: 'Configure o campo de mensagem',
         showHarnessIconInSessionHeader: 'Mostrar ícone do harness no cabeçalho da sessão',
         showHarnessIconInSessionHeaderDescription: 'Exibir o ícone do harness no cabeçalho da sessão',
         showHarnessIconsInSessionList: 'Mostrar ícones de harness na lista de sessões',
         showHarnessIconsInSessionListDescription: 'Exibir ícones de harness nos avatares da lista de sessões',
         unreadIndicatorPurple: 'Indicador de não lidos em roxo',
         unreadIndicatorPurpleDescription: 'Exibir o ponto de não lidos das sessões concluídas em roxo em vez de azul',
+        avatars: 'Avatares',
+        avatarsDescription: 'Escolha a aparência dos avatares de sessão gerados',
+        avatarStyle: 'Estilo do avatar',
+        avatarStyleOptions: {
+            brutalist: 'Brutalista',
+            pixelated: 'Pixelado',
+            gradient: 'Degradê',
+        },
+        avatarMonochrome: 'Avatares em preto e branco',
+        avatarMonochromeDescription: 'Exibir avatares sem cor',
+    },
+
+    sessionsFilter: {
+        // Filter menu on the home sessions list header
+        title: 'Filtro',
+        groupingTitle: 'Agrupamento',
+        flatList: 'Lista simples',
+        groupByProject: 'Agrupar por projeto',
+        appearanceSettings: 'Configurações de aparência',
     },
 
     settingsFeatures: {
@@ -420,14 +441,6 @@ export const pt: TranslationStructure = {
             stopGoal: 'Parar objetivo',
             editGoal: 'Editar objetivo',
         },
-        sessionStatusBar: {
-            contextUsage: ({ used, total, percent }: { used: string; total: string; percent: number }) => `Contexto ${used} de ${total} tokens, ${percent}%`,
-            limitFiveHour: 'Limite de 5 horas',
-            limitSevenDay: 'Limite de 7 dias',
-            limitResets: ({ time }: { time: string }) => `redefine ${time}`,
-            limitAsOf: ({ age }: { age: string }) => `há ${age}`,
-            limitRemaining: ({ percent }: { percent: number }) => `${percent}% restante`,
-        },
     },
 
     agentInput: {
@@ -494,7 +507,14 @@ export const pt: TranslationStructure = {
             badgePlan: 'Planejamento',
         },
         context: {
-            remaining: ({ percent }: { percent: number }) => `${percent}% restante`,
+            detailContext: ({ used, total }: { used: string; total: string }) => `${used} / ${total} de contexto`,
+            percentContext: ({ percent }: { percent: number }) => `${percent}% contexto`,
+            percentWeek: ({ percent }: { percent: number }) => `${percent}% semana`,
+        },
+        usagePopup: {
+            session: 'Sessão',
+            week: 'Semana',
+            resets: ({ time }: { time: string }) => `Redefine ${time}`,
         },
         suggestion: {
             fileLabel: 'ARQUIVO',

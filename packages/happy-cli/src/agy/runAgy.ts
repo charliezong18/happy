@@ -33,6 +33,7 @@ import type { AgentMessage } from '@/agent/core';
 import type { PermissionMode, UserMessage } from '@/api/types';
 import { downloadCodexFileEventAttachment } from '@/codex/utils/attachmentEvents';
 import { createSerialAsyncHandler } from '@/codex/utils/serialAsyncHandler';
+import { normalizeRemotePermissionMode } from '@/claude/utils/permissionMode';
 import { AgyBackend } from './AgyBackend';
 import { DEFAULT_AGY_MODEL } from './constants';
 import { createAgyUsageCollector } from './agyUsageCollector';
@@ -194,7 +195,10 @@ export async function runAgy(opts: RunAgyOptions): Promise<void> {
     if (!text && attachments.length === 0) return;
 
     if (message.meta?.permissionMode) {
-      backend.setPermissionMode(message.meta.permissionMode as PermissionMode);
+      const mode = normalizeRemotePermissionMode(message.meta.permissionMode);
+      if (mode) {
+        backend.setPermissionMode(mode);
+      }
     }
     if (message.meta?.hasOwnProperty('model') && message.meta.model) {
       backend.setModel(message.meta.model);
